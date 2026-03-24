@@ -65,6 +65,18 @@ export const deleteInventoryRecord = async (id: string): Promise<void> => {
   }
 };
 
+export const deleteAllInventoryRecords = async (): Promise<void> => {
+  const { error } = await supabase
+    .from('nhap_xuat_kho')
+    .delete()
+    .neq('id', '00000000-0000-0000-0000-000000000000');
+
+  if (error) {
+    console.error('Error deleting all inventory records:', error);
+    throw error;
+  }
+};
+
 /* 
 SQL TO RUN IN SUPABASE SQL EDITOR:
 

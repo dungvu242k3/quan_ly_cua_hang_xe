@@ -87,3 +87,15 @@ export const uploadTransactionImage = async (file: File): Promise<string> => {
 
   return data.publicUrl;
 };
+
+export const deleteAllTransactions = async (): Promise<void> => {
+  const { error } = await supabase
+    .from('thu_chi')
+    .delete()
+    .neq('id', '00000000-0000-0000-0000-000000000000');
+
+  if (error) {
+    console.error('Error deleting all transactions:', error);
+    throw error;
+  }
+};

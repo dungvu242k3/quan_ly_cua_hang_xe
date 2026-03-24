@@ -1,25 +1,35 @@
 // Attendance Management Page
-import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { 
-  Search, Plus, 
-  Edit2, Trash2, Camera, X, Save, 
-  MapPin, Calendar, Clock,
-  User, Loader2,
-  ArrowLeft, List,
-  Download, Upload
-} from 'lucide-react';
-import * as XLSX from 'xlsx';
-import { useNavigate } from 'react-router-dom';
 import { clsx } from 'clsx';
-import { getAttendanceRecords, upsertAttendanceRecord, deleteAttendanceRecord, bulkUpsertAttendanceRecords } from '../data/attendanceData';
+import {
+  ArrowLeft,
+  Calendar,
+  Camera,
+  Clock,
+  Download,
+  Edit2,
+  List,
+  Loader2,
+  MapPin,
+  Plus,
+  Save,
+  Search,
+  Trash2,
+  Upload,
+  User,
+  X
+} from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import * as XLSX from 'xlsx';
 import type { AttendanceRecord } from '../data/attendanceData';
+import { bulkUpsertAttendanceRecords, deleteAttendanceRecord, getAttendanceRecords, upsertAttendanceRecord } from '../data/attendanceData';
 
 const AttendanceManagementPage: React.FC = () => {
   const navigate = useNavigate();
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -76,7 +86,7 @@ const AttendanceManagementPage: React.FC = () => {
 
   const filteredRecords = useMemo(() => {
     return records.filter(r => {
-      const matchSearch = 
+      const matchSearch =
         (r.nhan_su?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
         (r.vi_tri?.toLowerCase() || '').includes(searchQuery.toLowerCase());
       return matchSearch;
@@ -134,9 +144,9 @@ const AttendanceManagementPage: React.FC = () => {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
-        setFormData(prev => ({ 
-          ...prev, 
-          vi_tri: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}` 
+        setFormData(prev => ({
+          ...prev,
+          vi_tri: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
         }));
         setLocationLoading(false);
       },
@@ -159,10 +169,10 @@ const AttendanceManagementPage: React.FC = () => {
       // 1. Tự động lấy giờ hiện tại
       const now = new Date();
       const timeStr = now.toTimeString().split(' ')[0].substring(0, 5); // HH:mm
-      
-      setFormData(prev => ({ 
-        ...prev, 
-        checkin: prev.checkin || timeStr, 
+
+      setFormData(prev => ({
+        ...prev,
+        checkin: prev.checkin || timeStr,
         ngay: now.toISOString().split('T')[0]
       }));
 
@@ -192,11 +202,13 @@ const AttendanceManagementPage: React.FC = () => {
   const handleDownloadTemplate = () => {
     const templateData = [
       {
+        "id": "",
         "Ngày": "2024-03-24",
-        "Họ tên Nhân viên": "Nguyễn Văn A",
-        "Check-in": "08:00",
-        "Check-out": "17:30",
-        "Vị trí": "21.273, 106.194"
+        "Checkin": "08:00",
+        "Checkout": "17:30",
+        "Ảnh": "",
+        "vị trí": "21.273, 106.194",
+        "Nhân sự": "Nguyễn Văn A"
       }
     ];
 
@@ -215,25 +227,115 @@ const AttendanceManagementPage: React.FC = () => {
       try {
         const bstr = evt.target?.result;
         const wb = XLSX.read(bstr, { type: 'binary' });
+        console.log('Attendance Sheet Names:', wb.SheetNames);
         const ws = wb.Sheets[wb.SheetNames[0]];
         const data = XLSX.utils.sheet_to_json(ws) as any[];
 
-        const formattedData: Partial<AttendanceRecord>[] = data.map(item => ({
-          ngay: item["Ngày"] || new Date().toISOString().split('T')[0],
-          nhan_su: item["Họ tên Nhân viên"] || '',
-          checkin: String(item["Check-in"] || ''),
-          checkout: String(item["Check-out"] || ''),
-          vi_tri: item["Vị trí"] || ''
-        }));
+        if (data.length > 0) {
+          console.log('First Row Keys:', Object.keys(data[0]));
+          console.log('First Row Data:', data[0]);
+        }
+
+        // Helper to convert Excel date/time serial numbers
+        const formatExcelTime = (val: any) => {
+          if (val === undefined || val === null || val === '') return null;
+          if (typeof val === 'number') {
+            const totalSeconds = Math.round(val * 24 * 3600);
+            const h = Math.floor(totalSeconds / 3600);
+            const m = Math.floor((totalSeconds % 3600) / 60);
+            const s = totalSeconds % 60;
+            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+          }
+          const str = String(val).trim();
+          if (!str) return null;
+
+          // Case: 9:53:13 PM or 8:56:34 AM
+          const ampmMatch = str.match(/^(\d{1,2}):(\d{2})(:(\d{2}))?\s*(AM|PM)$/i);
+          if (ampmMatch) {
+            let h = parseInt(ampmMatch[1]);
+            const m = ampmMatch[2];
+            const s = ampmMatch[4] || '00';
+            const p = ampmMatch[5].toUpperCase();
+            if (p === 'PM' && h < 12) h += 12;
+            if (p === 'AM' && h === 12) h = 0;
+            return `${String(h).padStart(2, '0')}:${m}:${s}`;
+          }
+
+          // Case: HH:mm:ss
+          if (str.match(/^\d{1,2}:\d{2}:\d{2}$/)) {
+            return str.split(':').map(v => v.padStart(2, '0')).join(':');
+          }
+
+          // Case: HH:mm
+          if (str.match(/^\d{1,2}:\d{2}$/)) {
+            return str.split(':').map(v => v.padStart(2, '0')).join(':') + ':00';
+          }
+
+          return str;
+        };
+
+        const formatExcelDate = (val: any) => {
+          if (val === undefined || val === null || val === '') return null;
+          if (typeof val === 'number' && val > 40000) {
+            const d = new Date(Math.round((val - 25569) * 86400 * 1000));
+            return d.toISOString().split('T')[0];
+          }
+          const s = String(val).trim();
+          return s || null;
+        };
+
+        const formattedData: Partial<AttendanceRecord>[] = data.map(item => {
+          // Normalize keys (trim whitespace)
+          const norm: any = {};
+          Object.keys(item).forEach(k => {
+            norm[String(k).trim()] = item[k];
+          });
+
+          // Fuzzy Mapping
+          const nhan_su = String(norm["Nhân sự"] || norm["Họ tên Nhân viên"] || norm["Họ tên"] || '').trim();
+          const ngay = formatExcelDate(norm["Ngày"]) || new Date().toISOString().split('T')[0];
+
+          // Skip if no personnel name
+          if (!nhan_su || nhan_su === 'undefined' || nhan_su === '') {
+            return null;
+          }
+
+          const record: Partial<AttendanceRecord> = {
+            nhan_su,
+            ngay,
+            checkin: formatExcelTime(norm["Checkin"] || norm["Giờ vào"] || norm["Check-in"]),
+            checkout: formatExcelTime(norm["Checkout"] || norm["Giờ ra"] || norm["Check-out"]),
+            vi_tri: (norm["vị trí"] || norm["Vị trí"] || norm["Tọa độ"]) ? String(norm["vị trí"] || norm["Vị trí"] || norm["Tọa độ"]).trim() : null,
+            anh: (norm["Ảnh"] || norm["Hình ảnh"]) ? String(norm["Ảnh"] || norm["Hình ảnh"]).trim() : null
+          };
+
+          const rawId = norm["id"] ? String(norm["id"]).trim() : '';
+          // Strict UUID validation
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          if (rawId && uuidRegex.test(rawId)) {
+            record.id = rawId;
+          }
+
+          return record;
+        }).filter(Boolean) as Partial<AttendanceRecord>[];
+
+        console.log('Formatted Attendance Data for Import:', formattedData);
 
         if (formattedData.length > 0) {
           setLoading(true);
-          await bulkUpsertAttendanceRecords(formattedData);
-          await loadRecords();
-          alert(`Đã nhập thành công ${formattedData.length} bản ghi chấm công!`);
+          try {
+            await bulkUpsertAttendanceRecords(formattedData);
+            await loadRecords();
+            alert(`Đã nhập thành công ${formattedData.length} bản ghi chấm công!`);
+          } catch (err: any) {
+            console.error('Database Error details:', err);
+            alert(`Lỗi khi lưu dữ liệu chấm công: ${err.message || 'Lỗi DB'}`);
+          }
+        } else {
+          alert("Không tìm thấy dữ liệu chấm công hợp lệ.");
         }
       } catch (error) {
-        console.error(error);
+        console.error('Import Pipeline Error:', error);
         alert("Lỗi khi đọc file Excel.");
       } finally {
         setLoading(false);
@@ -267,11 +369,11 @@ const AttendanceManagementPage: React.FC = () => {
               <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60">
                 <Search size={18} />
               </div>
-              <input 
+              <input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-1.5 border border-border rounded text-[13px] focus:ring-1 focus:ring-primary focus:border-primary placeholder-slate-400 outline-none" 
-                placeholder="Tìm tên nhân sự, vị trí..." 
+                className="w-full pl-9 pr-4 py-1.5 border border-border rounded text-[13px] focus:ring-1 focus:ring-primary focus:border-primary placeholder-slate-400 outline-none"
+                placeholder="Tìm tên nhân sự, vị trí..."
                 type="text"
               />
             </div>
@@ -279,7 +381,7 @@ const AttendanceManagementPage: React.FC = () => {
 
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
-              <button 
+              <button
                 onClick={handleDownloadTemplate}
                 className="flex items-center gap-2 px-3 py-1.5 border border-border rounded text-[13px] text-muted-foreground hover:bg-accent transition-colors font-medium bg-card"
                 title="Tải mẫu Excel"
@@ -288,7 +390,7 @@ const AttendanceManagementPage: React.FC = () => {
                 <span>Tải mẫu</span>
               </button>
               <div className="relative">
-                <button 
+                <button
                   onClick={() => document.getElementById('excel-import')?.click()}
                   className="flex items-center gap-2 px-3 py-1.5 border border-border rounded text-[13px] text-muted-foreground hover:bg-accent transition-colors font-medium bg-card"
                   title="Nhập chấm công từ Excel"
@@ -296,18 +398,18 @@ const AttendanceManagementPage: React.FC = () => {
                   <Upload size={18} />
                   <span>Nhập Excel</span>
                 </button>
-                <input 
+                <input
                   id="excel-import"
-                  type="file" 
-                  accept=".xlsx, .xls" 
-                  className="hidden" 
-                  onChange={handleImportExcel} 
+                  type="file"
+                  accept=".xlsx, .xls"
+                  className="hidden"
+                  onChange={handleImportExcel}
                 />
               </div>
             </div>
 
             <div className="relative">
-              <button 
+              <button
                 onClick={() => toggleDropdown('columns')}
                 className={clsx(
                   "p-1.5 border rounded transition-colors",
@@ -325,8 +427,8 @@ const AttendanceManagementPage: React.FC = () => {
                   </div>
                   <ul className="py-2 text-[13px] text-muted-foreground max-h-[300px] overflow-y-auto custom-scrollbar">
                     {allColumns.map(col => (
-                      <li 
-                        key={col.id} 
+                      <li
+                        key={col.id}
                         onClick={() => {
                           setVisibleColumns(prev => prev.includes(col.id) ? prev.filter(c => c !== col.id) : [...prev, col.id]);
                         }}
@@ -345,7 +447,7 @@ const AttendanceManagementPage: React.FC = () => {
                 </div>
               )}
             </div>
-            <button 
+            <button
               onClick={() => handleOpenModal()}
               className="bg-primary hover:bg-primary/90 text-white px-5 py-1.5 rounded flex items-center gap-2 text-[14px] font-semibold transition-colors"
             >
@@ -372,12 +474,12 @@ const AttendanceManagementPage: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-slate-100 text-[13px]">
                 {loading ? (
-                   <tr>
-                     <td colSpan={12} className="px-4 py-12 text-center text-muted-foreground">
-                       <Loader2 className="animate-spin inline-block mr-2" size={20} />
-                       Đang tải dữ liệu...
-                     </td>
-                   </tr>
+                  <tr>
+                    <td colSpan={12} className="px-4 py-12 text-center text-muted-foreground">
+                      <Loader2 className="animate-spin inline-block mr-2" size={20} />
+                      Đang tải dữ liệu...
+                    </td>
+                  </tr>
                 ) : filteredRecords.map(record => (
                   <tr key={record.id} className="hover:bg-muted/80 transition-colors">
                     <td className="px-4 py-4 text-center"><input className="rounded border-border text-primary size-4" type="checkbox" /></td>
@@ -452,7 +554,7 @@ const AttendanceManagementPage: React.FC = () => {
                     <div className="w-24 h-24 rounded-2xl border-4 border-card bg-primary/10 flex items-center justify-center text-3xl font-bold text-primary overflow-hidden shadow-inner">
                       {formData.anh ? <img src={formData.anh} alt="Preview" className="w-full h-full object-cover" /> : <Camera size={40} />}
                     </div>
-                    <button 
+                    <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
                       className="absolute bottom-0 right-0 w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-all"
@@ -462,23 +564,23 @@ const AttendanceManagementPage: React.FC = () => {
                     <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
                   </div>
                 </div>
-                
+
                 <InputField label="Nhân sự" name="nhan_su" value={formData.nhan_su} onChange={handleInputChange} icon={User} placeholder="Nhập tên nhân sự..." required />
                 <InputField label="Ngày" name="ngay" type="date" value={formData.ngay} onChange={handleInputChange} icon={Calendar} required />
-                
+
                 <div className="grid grid-cols-2 gap-4">
                   <InputField label="Giờ vào" name="checkin" type="time" value={formData.checkin || ''} onChange={handleInputChange} icon={Clock} />
                   <InputField label="Giờ ra" name="checkout" type="time" value={formData.checkout || ''} onChange={handleInputChange} icon={Clock} />
                 </div>
 
                 <div className="relative">
-                  <InputField 
-                    label="Vị trí (Tọa độ)" 
-                    name="vi_tri" 
-                    value={formData.vi_tri || ''} 
-                    onChange={handleInputChange} 
-                    icon={MapPin} 
-                    placeholder={locationLoading ? "Đang xác định tọa độ..." : (locationError || "Vị trí chấm công...") }
+                  <InputField
+                    label="Vị trí (Tọa độ)"
+                    name="vi_tri"
+                    value={formData.vi_tri || ''}
+                    onChange={handleInputChange}
+                    icon={MapPin}
+                    placeholder={locationLoading ? "Đang xác định tọa độ..." : (locationError || "Vị trí chấm công...")}
                     className={clsx(
                       locationLoading && "animate-pulse",
                       locationError && "border-red-300 text-red-500"
@@ -487,7 +589,7 @@ const AttendanceManagementPage: React.FC = () => {
                   <div className="absolute right-3 top-9 flex items-center gap-2">
                     {locationLoading && <Loader2 size={16} className="animate-spin text-primary" />}
                     {!locationLoading && (
-                      <button 
+                      <button
                         type="button"
                         onClick={getLocation}
                         className="text-primary hover:bg-primary/10 p-1 rounded transition-colors"
@@ -519,11 +621,11 @@ const AttendanceManagementPage: React.FC = () => {
   );
 };
 
-const InputField: React.FC<{ 
-  label: string, 
-  name: string, 
-  value?: string | number, 
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void, 
+const InputField: React.FC<{
+  label: string,
+  name: string,
+  value?: string | number,
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void,
   icon: React.ElementType,
   type?: string,
   placeholder?: string,
@@ -536,9 +638,9 @@ const InputField: React.FC<{
       <Icon size={14} className="text-primary/70" />
       {label} {required && <span className="text-red-500">*</span>}
     </label>
-    <input 
-      type={type} name={name} value={value} onChange={onChange} 
-      onFocus={(e) => e.target.select()} 
+    <input
+      type={type} name={name} value={value} onChange={onChange}
+      onFocus={(e) => e.target.select()}
       placeholder={placeholder} disabled={disabled} required={required}
       className={clsx("w-full px-4 py-2.5 bg-background border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-[14px]", disabled && "opacity-60 cursor-not-allowed bg-muted/20")}
     />

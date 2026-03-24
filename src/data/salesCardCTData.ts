@@ -69,3 +69,15 @@ export const deleteSalesCardCT = async (id: string): Promise<void> => {
     throw error;
   }
 };
+
+export const deleteAllSalesCardCTs = async (): Promise<void> => {
+  const { error } = await supabase
+    .from('the_ban_hang_ct')
+    .delete()
+    .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
+
+  if (error) {
+    console.error('Error deleting all sales card CTs:', error);
+    throw error;
+  }
+};

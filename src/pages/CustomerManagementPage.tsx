@@ -5,12 +5,12 @@ import {
   Phone, MapPin, Calendar, CreditCard,
   History, Settings, User, Loader2,
   ArrowLeft, ChevronDown, List, 
-  Building2, Download, Upload
+  Building2, Download, Upload, Tag
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useNavigate } from 'react-router-dom';
 import { clsx } from 'clsx';
-import { getCustomers, upsertCustomer, deleteCustomer, bulkUpsertCustomers } from '../data/customerData';
+import { getCustomers, upsertCustomer, deleteCustomer, bulkUpsertCustomers, bulkDeleteCustomers } from '../data/customerData';
 import type { KhachHang } from '../data/customerData';
 
 const CustomerManagementPage: React.FC = () => {
@@ -32,7 +32,7 @@ const CustomerManagementPage: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [visibleColumns, setVisibleColumns] = useState<string[]>([
-    'anh', 'ho_va_ten', 'so_dien_thoai', 'dia_chi_hien_tai', 'bien_so_xe', 
+    'anh', 'ma_khach_hang', 'ho_va_ten', 'so_dien_thoai', 'dia_chi_hien_tai', 'bien_so_xe', 
     'ngay_dang_ky', 'so_km', 'so_ngay_thay_dau', 'ngay_thay_dau', 'actions'
   ]);
 
@@ -216,12 +216,14 @@ const CustomerManagementPage: React.FC = () => {
   const handleDownloadTemplate = () => {
     const templateData = [
       {
+        "id": "",
         "Họ và tên": "Nguyễn Văn A",
-        "Số điện thoại": "0912345678",
-        "Địa chỉ hiện tại": "Bắc Giang",
-        "Biển số xe": "98A-123.45",
+        "SĐT": "0912345678",
+        "Ảnh": "https://example.com/image.png",
+        "Địa chỉ lưu trú hiện tại": "Bắc Giang",
+        "Biển số Xe": "98A-123.45",
         "Ngày đăng ký": "2024-01-01",
-        "Số KM": 15000,
+        "Số Km": 15000,
         "Số ngày thay dầu": 60,
         "Ngày thay dầu": "2024-02-15"
       }
@@ -246,29 +248,82 @@ const CustomerManagementPage: React.FC = () => {
         const ws = wb.Sheets[wsname];
         const data = XLSX.utils.sheet_to_json(ws) as any[];
 
-        const formattedData: Partial<KhachHang>[] = data.map(item => ({
-          ho_va_ten: item["Họ và tên"] || '',
-          so_dien_thoai: String(item["Số điện thoại"] || ''),
-          dia_chi_hien_tai: item["Địa chỉ hiện tại"] || '',
-          bien_so_xe: item["Biển số xe"] || '',
-          ngay_dang_ky: item["Ngày đăng ký"] || new Date().toISOString().split('T')[0],
-          so_km: Number(item["Số KM"]) || 0,
-          so_ngay_thay_dau: Number(item["Số ngày thay dầu"]) || 0,
-          ngay_thay_dau: item["Ngày thay dầu"] || null
-        }));
+        // Helper to convert Excel date serial numbers
+        const formatExcelDate = (val: any) => {
+          if (val === undefined || val === null || val === '') return undefined;
+          if (typeof val === 'number' && val > 40000) {
+            const d = new Date(Math.round((val - 25569) * 86400 * 1000));
+            return d.toISOString().split('T')[0];
+          }
+          const s = String(val).trim();
+          return s || undefined;
+        };
+
+        const formattedData: Partial<KhachHang>[] = data.map(row => {
+          // Normalize keys (trim whitespace and handle case)
+          const normalizedRow: any = {};
+          Object.keys(row).forEach(key => {
+            normalizedRow[key.trim().toLowerCase()] = row[key];
+          });
+
+          // Fuzzy mapping
+          const getValue = (possibleKeys: string[]) => {
+            const key = possibleKeys.find(k => normalizedRow[k.toLowerCase()] !== undefined);
+            return key ? normalizedRow[key.toLowerCase()] : undefined;
+          };
+
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          const rawId = String(getValue(['id', 'mã', 'uuid', 'mã khách hàng']) || '').trim();
+          const validId = uuidRegex.test(rawId) ? rawId : undefined;
+
+          const res: Partial<KhachHang> = {
+            ho_va_ten: String(getValue(['họ và tên', 'tên', 'tên khách hàng', 'họ tên']) || '').trim(),
+            so_dien_thoai: String(getValue(['số điện thoại', 'sđt', 'phone']) || '').trim(),
+            anh: getValue(['ảnh', 'hình ảnh', 'image', 'avatar']) || '',
+            dia_chi_hien_tai: String(getValue(['địa chỉ', 'địa chỉ lưu trú hiện tại', 'địa chỉ hiện tại', 'address']) || '').trim(),
+            bien_so_xe: String(getValue(['biển số xe', 'biển số', 'plate']) || '').trim(),
+            ngay_dang_ky: formatExcelDate(getValue(['ngày đăng ký', 'ngay dang ky'])),
+            so_km: Number(getValue(['số km', 'số km hiện tại', 'km'])) || 0,
+            so_ngay_thay_dau: Number(getValue(['số ngày thay dầu', 'chu kỳ', 'số ngày'])) || 0,
+            ngay_thay_dau: formatExcelDate(getValue(['ngày thay dầu', 'ngay thay dau'])),
+            ma_khach_hang: !validId && rawId ? rawId : undefined // Save legacy ID if not UUID
+          };
+
+          // Find existing customer to prevent duplication
+          const cleanPhone = (p: any) => String(p || '').replace(/\D/g, '');
+          const rowPhone = cleanPhone(res.so_dien_thoai);
+          
+          const existing = customers.find(c => {
+            const matchId = validId && c.id === validId;
+            const matchMa = rawId && c.ma_khach_hang === rawId;
+            const matchPhone = rowPhone && cleanPhone(c.so_dien_thoai) === rowPhone;
+            return matchId || matchMa || matchPhone;
+          });
+          
+          if (existing) {
+            res.id = existing.id;
+            // If ma_khach_hang is blank in DB but present in Excel, keep it
+            if (!existing.ma_khach_hang && !validId && rawId) {
+              res.ma_khach_hang = rawId;
+            }
+          } else if (validId) {
+            res.id = validId;
+          }
+          
+          return res;
+        }).filter(item => item.ho_va_ten);
 
         if (formattedData.length > 0) {
           setLoading(true);
           await bulkUpsertCustomers(formattedData);
           await loadCustomers();
-          alert(`Đã nhập thành công ${formattedData.length} khách hàng!`);
+          alert(`Đã xử lý thành công ${formattedData.length} khách hàng!`);
         }
       } catch (error) {
         console.error("Lỗi khi nhập Excel:", error);
         alert("Lỗi khi đọc file Excel. Vui lòng kiểm tra lại định dạng file.");
       } finally {
         setLoading(false);
-        // Clear input
         if (e.target) e.target.value = '';
       }
     };
@@ -282,6 +337,23 @@ const CustomerManagementPage: React.FC = () => {
         await loadCustomers();
       } catch (error) {
         alert('Lỗi: Không thể xóa khách hàng.');
+      }
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    if (window.confirm('CẢNH BÁO: Bạn có chắc chắn muốn XÓA TẤT CẢ khách hàng?')) {
+      if (window.confirm('HÀNH ĐỘNG NÀY KHÔNG THỂ HOÀN TÁC! Bạn vẫn muốn tiếp tục?')) {
+        try {
+          setLoading(true);
+          await bulkDeleteCustomers();
+          await loadCustomers();
+          alert('Đã xóa sạch toàn bộ danh sách khách hàng.');
+        } catch (error) {
+          alert('Lỗi khi xóa dữ liệu.');
+        } finally {
+          setLoading(false);
+        }
       }
     }
   };
@@ -423,6 +495,15 @@ const CustomerManagementPage: React.FC = () => {
             </div>
             <div className="flex items-center gap-2">
               <button 
+                onClick={handleDeleteAll}
+                className="flex items-center gap-2 px-3 py-1.5 border border-destructive/20 rounded text-[13px] text-destructive hover:bg-destructive/10 transition-colors font-medium bg-card"
+                title="Xóa tất cả khách hàng"
+              >
+                <Trash2 size={18} />
+                <span>Xóa tất cả</span>
+              </button>
+
+              <button 
                 onClick={handleDownloadTemplate}
                 className="flex items-center gap-2 px-3 py-1.5 border border-border rounded text-[13px] text-muted-foreground hover:bg-accent transition-colors font-medium"
                 title="Tải mẫu Excel"
@@ -465,6 +546,7 @@ const CustomerManagementPage: React.FC = () => {
               <thead>
                 <tr className="bg-muted border-b border-border text-muted-foreground text-[12px] font-bold uppercase tracking-wider">
                   <th className="px-4 py-3 w-10 text-center"><input className="rounded border-border text-primary size-4" type="checkbox" /></th>
+                  {visibleColumns.includes('ma_khach_hang') && <th className="px-4 py-3 font-semibold">Mã</th>}
                   {visibleColumns.includes('anh') && <th className="px-4 py-3 font-semibold">Ảnh</th>}
                   {visibleColumns.includes('ho_va_ten') && <th className="px-4 py-3 font-semibold">Họ và tên</th>}
                   {visibleColumns.includes('so_dien_thoai') && <th className="px-4 py-3 font-semibold">Số điện thoại</th>}
@@ -490,6 +572,7 @@ const CustomerManagementPage: React.FC = () => {
                   return (
                     <tr key={customer.id} className="hover:bg-muted/80 transition-colors">
                       <td className="px-4 py-4 text-center"><input className="rounded border-border text-primary size-4" type="checkbox" /></td>
+                      {visibleColumns.includes('ma_khach_hang') && <td className="px-4 py-4 font-mono text-[11px] text-muted-foreground">{customer.ma_khach_hang || customer.id.slice(0,8)}</td>}
                       {visibleColumns.includes('anh') && (
                         <td className="px-4 py-4">
                           <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary overflow-hidden border border-border shadow-sm">
@@ -616,6 +699,7 @@ const CustomerManagementPage: React.FC = () => {
                 </div>
                 <InputField label="Họ và tên" name="ho_va_ten" value={formData.ho_va_ten} onChange={handleInputChange} icon={User} placeholder="Nhập họ tên đầy đủ..." required />
                 <InputField label="Số điện thoại" name="so_dien_thoai" value={formData.so_dien_thoai} onChange={handleInputChange} icon={Phone} placeholder="09xx..." required />
+                <InputField label="Mã khách hàng (Mã cũ)" name="ma_khach_hang" value={formData.ma_khach_hang} onChange={handleInputChange} icon={Tag} placeholder="Mã khách hàng cũ (nếu có)" />
                 <InputField label="Địa chỉ hiện tại" name="dia_chi_hien_tai" value={formData.dia_chi_hien_tai} onChange={handleInputChange} icon={MapPin} placeholder="Bắc Giang, Hà Nội..." />
                 <InputField label="Biển số xe" name="bien_so_xe" value={formData.bien_so_xe} onChange={handleInputChange} icon={CreditCard} placeholder="98A-xxx.xx" />
                 <InputField label="Ngày đăng ký" name="ngay_dang_ky" type="date" value={formData.ngay_dang_ky} onChange={handleInputChange} icon={Calendar} />

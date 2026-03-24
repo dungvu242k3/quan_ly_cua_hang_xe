@@ -10,9 +10,9 @@ import {
 import * as XLSX from 'xlsx';
 import { useNavigate } from 'react-router-dom';
 import { getSalesCards, upsertSalesCard, deleteSalesCard, bulkUpsertSalesCards } from '../data/salesCardData';
-import { getCustomers } from '../data/customerData';
+import { getCustomers, bulkUpsertCustomers } from '../data/customerData';
 import { getPersonnel } from '../data/personnelData';
-import { getServices } from '../data/serviceData';
+import { getServices, bulkUpsertServices } from '../data/serviceData';
 import type { SalesCard } from '../data/salesCardData';
 import type { KhachHang } from '../data/customerData';
 import type { NhanSu } from '../data/personnelData';
@@ -116,12 +116,15 @@ const SalesCardManagementPage: React.FC = () => {
   const handleDownloadTemplate = () => {
     const templateData = [
       {
+        "id": "",
         "Ngày": "2024-03-24",
-        "Giờ": "08:30",
-        "SĐT Khách hàng": "0912345678",
-        "Tên Nhân viên": "Nguyễn Văn B",
-        "Tên Dịch vụ": "Thay dầu máy",
-        "Đánh giá": "hài lòng",
+        "Giờ": "08:30:00",
+        "id khách hàng": "",
+        "Tên KH": "Nguyễn Văn A",
+        "SĐT": "0912345678",
+        "Người phụ trách": "Nguyễn Văn B",
+        "ĐÁNH GIÁ DỊCH VỤ": "hài lòng",
+        "Dịch vụ sử dụng": "Thay dầu máy",
         "Số Km": 12000,
         "Ngày nhắc thay dầu": "2024-05-24"
       }
@@ -145,36 +148,201 @@ const SalesCardManagementPage: React.FC = () => {
         const ws = wb.Sheets[wb.SheetNames[0]];
         const data = XLSX.utils.sheet_to_json(ws) as any[];
 
-        const formattedData: Partial<SalesCard>[] = data.map(item => {
-          // Map Customer by Phone
-          const customerMatch = customers.find(c => c.so_dien_thoai === String(item["SĐT Khách hàng"]));
-          // Map Personnel by Name
-          const personnelMatch = personnel.find(p => p.ho_ten.toLowerCase() === String(item["Tên Nhân viên"]).toLowerCase());
-          // Map Service by Name
-          const serviceMatch = services.find(s => s.ten_dich_vu.toLowerCase() === String(item["Tên Dịch vụ"]).toLowerCase());
+        const formatExcelDate = (val: any) => {
+          if (val === undefined || val === null || val === '') return undefined;
+          if (typeof val === 'number' && val > 40000) {
+            const d = new Date(Math.round((val - 25569) * 86400 * 1000));
+            return d.toISOString().split('T')[0];
+          }
+          const s = String(val).trim();
+          // Intelligent Date Parser (supports DD/MM/YYYY and MM/DD/YYYY)
+          const dateMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+          if (dateMatch) {
+            const p1 = parseInt(dateMatch[1]);
+            const p2 = parseInt(dateMatch[2]);
+            const p3 = dateMatch[3];
+            if (p1 > 12) { // Format: DD/MM/YYYY
+              return `${p3}-${String(p2).padStart(2, '0')}-${String(p1).padStart(2, '0')}`;
+            } else if (p2 > 12) { // Format: MM/DD/YYYY
+              return `${p3}-${String(p1).padStart(2, '0')}-${String(p2).padStart(2, '0')}`;
+            } else { // Ambiguous (both <= 12), assume DD/MM/YYYY
+              return `${p3}-${String(p2).padStart(2, '0')}-${String(p1).padStart(2, '0')}`;
+            }
+          }
+          return s || undefined;
+        };
 
-          return {
-            ngay: item["Ngày"] || new Date().toISOString().split('T')[0],
-            gio: item["Giờ"] || "08:00",
+        const formatExcelTime = (val: any) => {
+          if (val === undefined || val === null || val === '') return null;
+          if (typeof val === 'number') {
+            const totalSeconds = Math.round(val * 24 * 3600);
+            const h = Math.floor(totalSeconds / 3600);
+            const m = Math.floor((totalSeconds % 3600) / 60);
+            const s = totalSeconds % 60;
+            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+          }
+          const str = String(val).trim();
+          if (!str) return null;
+
+          const ampmMatch = str.match(/^(\d{1,2}):(\d{2})(:(\d{2}))?\s*(AM|PM|SA|CH)$/i);
+          if (ampmMatch) {
+            let h = parseInt(ampmMatch[1]);
+            const m = ampmMatch[2];
+            const s = ampmMatch[4] || '00';
+            const suffix = ampmMatch[5].toUpperCase();
+            const p = (suffix === 'CH' || suffix === 'PM') ? 'PM' : 'AM';
+            if (p === 'PM' && h < 12) h += 12;
+            if (p === 'AM' && h === 12) h = 0;
+            return `${String(h).padStart(2, '0')}:${m}:${s}`;
+          }
+
+          if (str.match(/^\d{1,2}:\d{2}:\d{2}$/)) {
+            return str.split(':').map(v => v.padStart(2, '0')).join(':');
+          }
+
+          if (str.match(/^\d{1,2}:\d{2}$/)) {
+            return str.split(':').map(v => v.padStart(2, '0')).join(':') + ':00';
+          }
+          return str;
+        };
+
+        const cleanPhone = (p: any) => String(p || '').replace(/\D/g, '');
+
+        // --- FORCE IMPORT LOGIC ---
+
+        // Prep work: Create placeholder customers & services for unrecognized ones
+        const toUpsertCustomers: Partial<KhachHang>[] = [];
+        const seenCustKeys = new Set<string>();
+
+        const toUpsertServices: Partial<DichVu>[] = [];
+        const seenServiceKeys = new Set<string>();
+
+        data.forEach(row => {
+          const norm: any = {};
+          Object.keys(row).forEach(k => { norm[String(k).trim().toLowerCase().replace(/\s+/g, ' ')] = row[k]; });
+          const getValue = (keys: string[]) => {
+            const k = keys.find(z => norm[z.toLowerCase().replace(/\s+/g, ' ')] !== undefined);
+            return k ? norm[k.toLowerCase().replace(/\s+/g, ' ')] : undefined;
+          };
+
+          const rawCustId = String(getValue(['id khách hàng', 'mã khách hàng', 'cust id', 'khách hàng id', 'don_hang_id']) || '').trim();
+          const sdtKhach = cleanPhone(getValue(['sđt', 'số điện thoại', 'phone', 'sdt']));
+          const tenKhach = String(getValue(['tên kh', 'khách hàng', 'tên khách hàng', 'họ và tên', 'họ tên', 'người mua']) || '').trim();
+
+          const exists = customers.find(c => {
+            const cId = c.id.replace(/-/g, '').toLowerCase();
+            const rId = rawCustId.replace(/-/g, '').toLowerCase();
+            const matchId = (rId && cId === rId) || (rId && rId.length >= 6 && cId.startsWith(rId)) || (rawCustId && c.ma_khach_hang === rawCustId);
+            const matchPhone = sdtKhach && cleanPhone(c.so_dien_thoai) === sdtKhach;
+            const matchName = tenKhach && c.ho_va_ten.toLowerCase() === tenKhach.toLowerCase();
+            return matchId || matchPhone || matchName;
+          });
+
+          if (!exists && (tenKhach || sdtKhach || rawCustId)) {
+            const key = `${tenKhach}-${sdtKhach}-${rawCustId}`;
+            if (!seenCustKeys.has(key)) {
+              seenCustKeys.add(key);
+              toUpsertCustomers.push({
+                ho_va_ten: tenKhach || `Khách hàng ${rawCustId || 'mới'}`,
+                so_dien_thoai: sdtKhach || '',
+                ma_khach_hang: rawCustId || undefined,
+                ngay_dang_ky: new Date().toISOString().split('T')[0],
+                bien_so_xe: 'Xe Chưa Biển'
+              });
+            }
+          }
+
+          const tenDichVu = String(getValue(['dịch vụ sử dụng', 'dịch vụ', 'tên dịch vụ', 'service', 'sản phẩm', 'loại', 'hạng mục']) || '').trim();
+          const sExists = services.find(sv => sv.ten_dich_vu.toLowerCase() === tenDichVu.toLowerCase());
+          if (!sExists && tenDichVu) {
+            if (!seenServiceKeys.has(tenDichVu.toLowerCase())) {
+              seenServiceKeys.add(tenDichVu.toLowerCase());
+              toUpsertServices.push({
+                ten_dich_vu: tenDichVu,
+                gia_nhap: 0,
+                gia_ban: 0,
+                co_so: 'Cơ sở chính'
+              });
+            }
+          }
+        });
+
+        if (toUpsertCustomers.length > 0) {
+          await bulkUpsertCustomers(toUpsertCustomers);
+        }
+        if (toUpsertServices.length > 0) {
+          await bulkUpsertServices(toUpsertServices);
+        }
+
+        // Re-fetch everything to get the new IDs
+        const [updatedCustomers, updatedPersonnel, updatedServices] = await Promise.all([
+          getCustomers(),
+          getPersonnel(),
+          getServices()
+        ]);
+
+        const formattedData = data.map((row) => {
+          const norm: any = {};
+          Object.keys(row).forEach(k => { norm[String(k).trim().toLowerCase().replace(/\s+/g, ' ')] = row[k]; });
+          const getValue = (keys: string[]) => {
+            const k = keys.find(z => norm[z.toLowerCase().replace(/\s+/g, ' ')] !== undefined);
+            return k ? norm[k.toLowerCase().replace(/\s+/g, ' ')] : undefined;
+          };
+
+          const rawId = String(getValue(['id', 'mã phiếu', 'mã', 'uuid']) || '').trim();
+          const rawCustId = String(getValue(['id khách hàng', 'mã khách hàng', 'cust id', 'khách hàng id', 'don_hang_id']) || '').trim();
+          const sdtKhach = cleanPhone(getValue(['sđt', 'số điện thoại', 'phone', 'sdt']));
+          const tenKhach = String(getValue(['tên kh', 'khách hàng', 'tên khách hàng', 'họ và tên', 'họ tên', 'người mua']) || '').trim();
+
+          const customerMatch = updatedCustomers.find(c => {
+            const cId = c.id.replace(/-/g, '').toLowerCase();
+            const rId = rawCustId.replace(/-/g, '').toLowerCase();
+            const matchId = (rId && cId === rId) || (rId && rId.length >= 6 && cId.startsWith(rId)) || (rawCustId && c.ma_khach_hang === rawCustId);
+            const matchPhone = sdtKhach && cleanPhone(c.so_dien_thoai) === sdtKhach;
+            const matchName = tenKhach && c.ho_va_ten.toLowerCase() === tenKhach.toLowerCase();
+            return matchId || matchPhone || matchName;
+          });
+
+          const tenNhanVien = String(getValue(['người phụ trách', 'ngươi phụ trách', 'nhân viên', 'tên nhân viên', 'phụ trách', 'kỹ thuật', 'thợ']) || '').trim();
+          const personnelMatch = updatedPersonnel.find(p => p.ho_ten.toLowerCase() === tenNhanVien.toLowerCase());
+          const tenDichVu = String(getValue(['dịch vụ sử dụng', 'dịch vụ', 'tên dịch vụ', 'service', 'sản phẩm', 'loại', 'hạng mục']) || '').trim();
+          const serviceMatch = updatedServices.find(s => s.ten_dich_vu.toLowerCase() === tenDichVu.toLowerCase());
+
+          // FALLBACKS for FORCE IMPORT
+          let ngay = formatExcelDate(getValue(['ngày', 'ngày lập', 'ngay', 'date', 'thời gian']));
+          if (!ngay) ngay = new Date().toISOString().split('T')[0];
+          
+          let gio = formatExcelTime(getValue(['giờ', 'thời gian', 'gio', 'time', 'tiết đi']));
+          if (!gio) gio = "00:00:00";
+
+          const cardToUpdate = salesCards.find(c => {
+            const cleanId = c.id.replace(/-/g, '').toLowerCase();
+            const cleanRawId = rawId.replace(/-/g, '').toLowerCase();
+            return cleanId === cleanRawId || (cleanRawId.length >= 8 && cleanId.startsWith(cleanRawId));
+          });
+
+          const res: any = {
+            ngay,
+            gio,
             khach_hang_id: customerMatch?.id || null,
             nhan_vien_id: personnelMatch?.id || null,
             dich_vu_id: serviceMatch?.id || null,
-            danh_gia: item["Đánh giá"] || 'hài lòng',
-            so_km: Number(item["Số Km"]) || 0,
-            ngay_nhac_thay_dau: item["Ngày nhắc thay dầu"] || null
+            danh_gia: getValue(['đánh giá dịch vụ', 'đánh giá', 'đánh giá dv', 'evaluation']) || 'hài lòng',
+            so_km: Number(getValue(['số km', 'km', 'kilometer'])) || 0,
+            ngay_nhac_thay_dau: formatExcelDate(getValue(['ngày nhắc thay dầu', 'nhắc thay dầu', 'hạn thay dầu', 'ngay nhac', 'ngày thay']))
           };
-        });
 
-        // Filter out records without essential IDs if necessary, or just warn
-        const validData = formattedData.filter(d => d.khach_hang_id);
+          if (cardToUpdate) res.id = cardToUpdate.id;
+          return res as Partial<SalesCard>;
+        }).filter(Boolean);
 
-        if (validData.length > 0) {
+        if (formattedData.length > 0) {
           setLoading(true);
-          await bulkUpsertSalesCards(validData);
+          await bulkUpsertSalesCards(formattedData);
           await loadData();
-          alert(`Đã nhập thành công ${validData.length} phiếu bán hàng! (${formattedData.length - validData.length} lỗi do không tìm thấy khách hàng)`);
+          alert(`🚀 THÀNH CÔNG: Đã nhập ${formattedData.length} phiếu bán hàng.\n\nĐã tự động tạo ${(toUpsertCustomers.length)} khách hàng mới từ danh sách.`);
         } else {
-          alert("Không tìm thấy dữ liệu hợp lệ để nhập (kiểm tra SĐT khách hàng).");
+          alert(`❌ Không tìm thấy dữ liệu hợp lệ trong file Excel.`);
         }
       } catch (error) {
         console.error(error);

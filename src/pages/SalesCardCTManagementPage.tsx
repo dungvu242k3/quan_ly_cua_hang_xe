@@ -1,19 +1,29 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  Search, Plus, 
-  Edit2, Trash2, X, Save, 
-  ArrowLeft, FileText, Package,
-  Loader2, Calculator, Building2,
-  Download, Upload
+import {
+  ArrowLeft,
+  Building2,
+  Calculator,
+  Download,
+  Edit2,
+  FileText,
+  Loader2,
+  Package,
+  Plus,
+  Save,
+  Search,
+  Trash2,
+  Upload,
+  X
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getSalesCardCTs, upsertSalesCardCT, deleteSalesCardCT, bulkUpsertSalesCardCTs } from '../data/salesCardCTData';
-import { getSalesCards } from '../data/salesCardData'; // Header cards
-import { getServices } from '../data/serviceData'; // Services data
+import * as XLSX from 'xlsx';
+import { getCustomers } from '../data/customerData';
 import type { SalesCardCT } from '../data/salesCardCTData';
+import { bulkUpsertSalesCardCTs, deleteSalesCardCT, getSalesCardCTs, upsertSalesCardCT, deleteAllSalesCardCTs } from '../data/salesCardCTData';
 import type { SalesCard } from '../data/salesCardData';
+import { getSalesCards } from '../data/salesCardData'; // Header cards
 import type { DichVu } from '../data/serviceData';
+import { bulkUpsertServices, getServices } from '../data/serviceData'; // Services data
 
 const SalesCardCTManagementPage: React.FC = () => {
   const navigate = useNavigate();
@@ -22,7 +32,7 @@ const SalesCardCTManagementPage: React.FC = () => {
   const [services, setServices] = useState<DichVu[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<SalesCardCT | null>(null);
   const [formData, setFormData] = useState<Partial<SalesCardCT>>({});
@@ -53,7 +63,7 @@ const SalesCardCTManagementPage: React.FC = () => {
 
   const filteredItems = useMemo(() => {
     return items.filter(item => {
-      const matchSearch = 
+      const matchSearch =
         (item.san_pham?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
         (item.ten_don_hang?.toLowerCase() || '').includes(searchQuery.toLowerCase());
       return matchSearch;
@@ -111,7 +121,9 @@ const SalesCardCTManagementPage: React.FC = () => {
   const handleDownloadTemplate = () => {
     const templateData = [
       {
+        "don_hang_id": "",
         "Ngày": "2024-03-24",
+        "ID": "Optional: UUID format",
         "Tên đơn hàng": "Bảo dưỡng xe SH 2023",
         "Sản phẩm": "Thay dầu máy",
         "Cơ sở": "Cơ sở Bắc Giang",
@@ -141,28 +153,124 @@ const SalesCardCTManagementPage: React.FC = () => {
         const ws = wb.Sheets[wb.SheetNames[0]];
         const data = XLSX.utils.sheet_to_json(ws) as any[];
 
-        const formattedData: Partial<SalesCardCT>[] = data.map(item => {
-          // Attempt to map product to get default prices if missing
-          const serviceMatch = services.find(s => s.ten_dich_vu.toLowerCase() === String(item["Sản phẩm"]).toLowerCase());
-          
-          return {
-            ngay: item["Ngày"] || new Date().toISOString().split('T')[0],
-            ten_don_hang: item["Tên đơn hàng"] || '',
-            san_pham: item["Sản phẩm"] || '',
-            co_so: item["Cơ sở"] || 'Cơ sở Bắc Giang',
-            gia_ban: Number(item["Giá bán"]) || serviceMatch?.gia_ban || 0,
-            gia_von: Number(item["Giá vốn"]) || serviceMatch?.gia_nhap || 0,
-            so_luong: Number(item["Số lượng"]) || 1,
-            chi_phi: Number(item["Chi phí"]) || 0,
-            ghi_chu: item["Ghi chú"] || ''
+        const formatExcelDate = (val: any) => {
+          if (val === undefined || val === null || val === '') return undefined;
+          if (typeof val === 'number' && val > 40000) {
+            const d = new Date(Math.round((val - 25569) * 86400 * 1000));
+            return d.toISOString().split('T')[0];
+          }
+          const s = String(val).trim();
+          const dateMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+          if (dateMatch) {
+            const p1 = parseInt(dateMatch[1]);
+            const p2 = parseInt(dateMatch[2]);
+            const p3 = dateMatch[3];
+            if (p1 > 12) return `${p3}-${String(p2).padStart(2, '0')}-${String(p1).padStart(2, '0')}`;
+            if (p2 > 12) return `${p3}-${String(p1).padStart(2, '0')}-${String(p2).padStart(2, '0')}`;
+            return `${p3}-${String(p2).padStart(2, '0')}-${String(p1).padStart(2, '0')}`;
+          }
+          return s || undefined;
+        };
+
+        // --- FORCE IMPORT LOGIC ---
+
+        // Pass 1: Auto-create missing Services
+        const toUpsertServices: Partial<DichVu>[] = [];
+        const seenServiceKeys = new Set<string>();
+
+        data.forEach(item => {
+          const norm: any = {};
+          Object.keys(item).forEach(k => { norm[String(k).trim().toLowerCase().replace(/\s+/g, ' ')] = item[k]; });
+          const getValue = (keys: string[]) => {
+            const k = keys.find(z => norm[z.toLowerCase().replace(/\s+/g, ' ')] !== undefined);
+            return k ? norm[k.toLowerCase().replace(/\s+/g, ' ')] : undefined;
           };
+
+          const productName = String(getValue(['Sản phẩm', 'sản phẩm', 'dịch vụ', 'item', 'tên sản phẩm']) || '').trim();
+          if (productName && !services.find(s => s.ten_dich_vu.toLowerCase() === productName.toLowerCase())) {
+            if (!seenServiceKeys.has(productName.toLowerCase())) {
+              seenServiceKeys.add(productName.toLowerCase());
+              toUpsertServices.push({
+                ten_dich_vu: productName,
+                gia_nhap: 0,
+                gia_ban: 0,
+                co_so: 'Cơ sở chính'
+              });
+            }
+          }
         });
+
+        if (toUpsertServices.length > 0) {
+          await bulkUpsertServices(toUpsertServices);
+        }
+
+        // Re-fetch everything
+        const [latestSalesCards, latestCustomers, latestServices] = await Promise.all([
+          getSalesCards(),
+          getCustomers(),
+          getServices()
+        ]);
+
+        const formattedData: Partial<SalesCardCT>[] = data.map((item) => {
+          const norm: any = {};
+          Object.keys(item).forEach(k => { norm[String(k).trim().toLowerCase().replace(/\s+/g, ' ')] = item[k]; });
+          const getValue = (keys: string[]) => {
+            const k = keys.find(z => norm[z.toLowerCase().replace(/\s+/g, ' ')] !== undefined);
+            return k ? norm[k.toLowerCase().replace(/\s+/g, ' ')] : undefined;
+          };
+
+          const rawDonHangId = String(getValue(['ID đơn hàng', 'Mã đơn hàng', 'id đơn hàng', 'don_hang_id', 'mã đơn hàng', 'phiếu id', 'mã phiếu', 'id khách hàng']) || '').trim();
+
+          // Match Parent Order
+          const parentOrder = latestSalesCards.find(card => {
+            const cleanCardId = card.id.replace(/-/g, '').toLowerCase();
+            const cleanRawId = rawDonHangId.replace(/-/g, '').toLowerCase();
+            const matchOrderId = cleanCardId === cleanRawId || (cleanRawId.length >= 6 && cleanCardId.startsWith(cleanRawId));
+
+            // Also check if the raw ID matches the customer attached to this card
+            const customerMatch = latestCustomers.find(c => {
+              const cleanCId = c.id.replace(/-/g, '').toLowerCase();
+              return cleanCId === cleanRawId || (cleanRawId && c.ma_khach_hang === rawDonHangId);
+            });
+            return matchOrderId || (customerMatch && card.khach_hang_id === customerMatch.id);
+          });
+
+          const productName = String(getValue(['Sản phẩm', 'sản phẩm', 'dịch vụ', 'item', 'tên sản phẩm']) || '').trim();
+          const serviceMatch = latestServices.find(s => s.ten_dich_vu.toLowerCase() === productName.toLowerCase());
+
+          let ngay = formatExcelDate(getValue(['Ngày', 'ngày', 'ngày lập', 'ngay', 'date']));
+          if (!ngay) ngay = new Date().toISOString().split('T')[0];
+
+          const giaBan = Math.round(Number(getValue(['Giá', 'giá', 'giá bán', 'đơn giá', 'price', 'doanh thu', 'bán'])) || serviceMatch?.gia_ban || 0);
+          const giaVon = Math.round(Number(getValue(['Giá vốn', 'giá vốn', 'vốn', 'cost', 'giá nhập'])) || serviceMatch?.gia_nhap || 0);
+          const soLuong = Math.round(Number(getValue(['Số lượng', 'số lượng', 'sl', 'quantity'])) || 1);
+          const chiPhi = Math.round(Number(getValue(['Chi phí', 'chi phí', 'phát sinh', 'overhead', 'chi phí phụ'])) || 0);
+
+          const res: any = {
+            don_hang_id: parentOrder?.id || null, // Allow orphaned records
+            ngay,
+            ten_don_hang: getValue(['Tên đơn hàng', 'tên đơn hàng', 'đơn hàng', 'tên phiếu', 'tên đơn', 'nội dung', 'lý do', 'order name', 'tên thẻ']) || (parentOrder ? `Đơn hàng ${parentOrder.id.slice(0, 8)}` : 'Đơn hàng từ Excel'),
+            san_pham: productName || 'Sản phẩm lẻ',
+            co_so: getValue(['Cơ sở', 'cơ sở', 'chi nhánh', 'branch']) || 'Cơ sở Bắc Giang',
+            gia_ban: giaBan,
+            gia_von: giaVon,
+            so_luong: soLuong,
+            chi_phi: chiPhi,
+            ghi_chu: getValue(['Ghi chú', 'ghi chú', 'note', 'nhận xét']) || ''
+          };
+
+          const rawId = String(getValue(['id', 'mã', 'uuid', 'mã chi tiết']) || '').trim();
+          if (rawId.length >= 32) res.id = rawId;
+          return res;
+        }).filter(Boolean) as Partial<SalesCardCT>[];
 
         if (formattedData.length > 0) {
           setLoading(true);
           await bulkUpsertSalesCardCTs(formattedData);
           await loadData();
-          alert(`Đã nhập thành công ${formattedData.length} hạng mục chi tiết!`);
+          alert(`🚀 THÀNH CÔNG: Đã nhập ${formattedData.length} hạng mục chi tiết.\n\nĐã tự động tạo ${toUpsertServices.length} sản phẩm/dịch vụ mới.`);
+        } else {
+          alert(`❌ Không tìm thấy dữ liệu hợp lệ (Thiếu liên kết Đơn hàng gốc).`);
         }
       } catch (error) {
         console.error(error);
@@ -173,6 +281,21 @@ const SalesCardCTManagementPage: React.FC = () => {
       }
     };
     reader.readAsBinaryString(file);
+  };
+
+  const handleDeleteAll = async () => {
+    if (window.confirm('CẢNH BÁO: Hành động này sẽ xóa TOÀN BỘ dữ liệu chi tiết bán hàng. Bạn có chắc chắn muốn tiếp tục?')) {
+      try {
+        setLoading(true);
+        await deleteAllSalesCardCTs();
+        await loadData();
+        alert('Đã xóa toàn bộ dữ liệu.');
+      } catch (error) {
+        alert('Lỗi: Không thể xóa toàn bộ dữ liệu.');
+      } finally {
+        setLoading(false);
+      }
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -212,11 +335,11 @@ const SalesCardCTManagementPage: React.FC = () => {
               <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60">
                 <Search size={18} />
               </div>
-              <input 
+              <input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-1.5 border border-border rounded text-[13px] outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground/40" 
-                placeholder="Tìm sản phẩm, tên đơn hàng..." 
+                className="w-full pl-9 pr-4 py-1.5 border border-border rounded text-[13px] outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground/40"
+                placeholder="Tìm sản phẩm, tên đơn hàng..."
                 type="text"
               />
             </div>
@@ -224,7 +347,7 @@ const SalesCardCTManagementPage: React.FC = () => {
 
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
-              <button 
+              <button
                 onClick={handleDownloadTemplate}
                 className="flex items-center gap-2 px-3 py-1.5 border border-border rounded text-[13px] text-muted-foreground hover:bg-accent transition-colors font-medium bg-card"
                 title="Tải mẫu Excel"
@@ -233,7 +356,7 @@ const SalesCardCTManagementPage: React.FC = () => {
                 <span>Tải mẫu</span>
               </button>
               <div className="relative">
-                <button 
+                <button
                   onClick={() => document.getElementById('excel-import')?.click()}
                   className="flex items-center gap-2 px-3 py-1.5 border border-border rounded text-[13px] text-muted-foreground hover:bg-accent transition-colors font-medium bg-card"
                   title="Nhập chi tiết từ Excel"
@@ -241,17 +364,26 @@ const SalesCardCTManagementPage: React.FC = () => {
                   <Upload size={18} />
                   <span>Nhập Excel</span>
                 </button>
-                <input 
+                <input
                   id="excel-import"
-                  type="file" 
-                  accept=".xlsx, .xls" 
-                  className="hidden" 
-                  onChange={handleImportExcel} 
+                  type="file"
+                  accept=".xlsx, .xls"
+                  className="hidden"
+                  onChange={handleImportExcel}
                 />
               </div>
             </div>
 
-            <button 
+            <button
+              onClick={handleDeleteAll}
+              className="px-3 py-1.5 border border-red-200 rounded text-[13px] text-red-600 hover:bg-red-50 transition-colors font-medium bg-white flex items-center gap-2"
+              title="Xóa toàn bộ dữ liệu"
+            >
+              <Trash2 size={18} />
+              <span>Xóa tất cả</span>
+            </button>
+
+            <button
               onClick={() => handleOpenModal()}
               className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-1.5 rounded flex items-center gap-2 text-[14px] font-semibold transition-colors shadow-lg shadow-blue-500/20"
             >
@@ -275,17 +407,18 @@ const SalesCardCTManagementPage: React.FC = () => {
                   <th className="px-4 py-3 font-semibold text-center">SL</th>
                   <th className="px-4 py-3 font-semibold text-right">Thành tiền</th>
                   <th className="px-4 py-3 font-semibold text-right text-emerald-600">Lãi</th>
+                  <th className="px-4 py-3 font-semibold">ID</th>
                   <th className="px-4 py-3 text-center font-semibold">Tác vụ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-[13px]">
                 {loading ? (
-                   <tr>
-                     <td colSpan={10} className="px-4 py-12 text-center text-muted-foreground">
-                       <Loader2 className="animate-spin inline-block mr-2" size={20} />
-                       Đang tải dữ liệu chi tiết...
-                     </td>
-                   </tr>
+                  <tr>
+                    <td colSpan={10} className="px-4 py-12 text-center text-muted-foreground">
+                      <Loader2 className="animate-spin inline-block mr-2" size={20} />
+                      Đang tải dữ liệu chi tiết...
+                    </td>
+                  </tr>
                 ) : filteredItems.map(item => (
                   <tr key={item.id} className="hover:bg-muted/80 transition-colors">
                     <td className="px-4 py-4">{new Date(item.ngay).toLocaleDateString('vi-VN')}</td>
@@ -300,6 +433,9 @@ const SalesCardCTManagementPage: React.FC = () => {
                     <td className="px-4 py-4 text-center font-bold">x{item.so_luong}</td>
                     <td className="px-4 py-4 text-right font-black text-foreground">{formatCurrency(item.thanh_tien)}</td>
                     <td className="px-4 py-4 text-right font-black text-emerald-600">{formatCurrency(item.lai)}</td>
+                    <td className="px-4 py-4 font-mono text-[10px] text-muted-foreground max-w-[80px] truncate" title={item.id}>
+                      {item.id}
+                    </td>
                     <td className="px-4 py-4 text-center">
                       <div className="flex items-center justify-center gap-2">
                         <button onClick={() => handleOpenModal(item)} className="p-1.5 text-primary hover:bg-primary/10 rounded transition-colors"><Edit2 size={15} /></button>
@@ -334,12 +470,12 @@ const SalesCardCTManagementPage: React.FC = () => {
             <form onSubmit={handleSubmit} className="overflow-y-auto p-8 flex-1">
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  
+
                   {/* Link to Order Header */}
                   <div className="space-y-1.5">
                     <label className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider">Chọn Đơn hàng (ID)</label>
-                    <select 
-                      name="don_hang_id" value={formData.don_hang_id || ''} onChange={handleInputChange} 
+                    <select
+                      name="don_hang_id" value={formData.don_hang_id || ''} onChange={handleInputChange}
                       className="w-full px-4 py-2 bg-background border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/20 text-[14px]"
                     >
                       <option value="">-- Chọn đơn hàng gốc --</option>
@@ -349,9 +485,9 @@ const SalesCardCTManagementPage: React.FC = () => {
 
                   <div className="space-y-1.5">
                     <label className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider">Tên đơn hàng</label>
-                    <input 
-                      type="text" name="ten_don_hang" value={formData.ten_don_hang || ''} onChange={handleInputChange} 
-                      className="w-full px-4 py-2 bg-background border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/20 text-[14px]" 
+                    <input
+                      type="text" name="ten_don_hang" value={formData.ten_don_hang || ''} onChange={handleInputChange}
+                      className="w-full px-4 py-2 bg-background border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/20 text-[14px]"
                       placeholder="Vd: Bảo dưỡng xe Honda SH..."
                     />
                   </div>
@@ -361,8 +497,8 @@ const SalesCardCTManagementPage: React.FC = () => {
                       <Package size={14} className="text-blue-600" />
                       Sản phẩm / Dịch vụ chi tiết
                     </label>
-                    <select 
-                      name="san_pham" value={formData.san_pham || ''} 
+                    <select
+                      name="san_pham" value={formData.san_pham || ''}
                       onChange={(e) => {
                         const val = e.target.value;
                         const selectedService = services.find(s => s.ten_dich_vu === val);
@@ -373,7 +509,7 @@ const SalesCardCTManagementPage: React.FC = () => {
                           gia_von: selectedService?.gia_nhap || prev.gia_von,
                           ten_don_hang: prev.ten_don_hang || (val ? `Bán ${val}` : '')
                         }));
-                      }} 
+                      }}
                       required
                       className="w-full px-4 py-2 bg-background border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/20 text-[14px] font-bold"
                     >
@@ -384,9 +520,9 @@ const SalesCardCTManagementPage: React.FC = () => {
 
                   <div className="space-y-1.5">
                     <label className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-                       <Building2 size={14} /> Cơ sở
+                      <Building2 size={14} /> Cơ sở
                     </label>
-                    <select 
+                    <select
                       name="co_so" value={formData.co_so || ''} onChange={handleInputChange} required
                       className="w-full px-4 py-2 bg-background border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/20 text-[14px]"
                     >
@@ -396,49 +532,49 @@ const SalesCardCTManagementPage: React.FC = () => {
 
                   <div className="space-y-1.5">
                     <label className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider">Ngày thực hiện</label>
-                    <input 
+                    <input
                       type="date" name="ngay" value={formData.ngay || ''} onChange={handleInputChange} required
-                      className="w-full px-4 py-2 bg-background border border-border rounded-xl outline-none" 
+                      className="w-full px-4 py-2 bg-background border border-border rounded-xl outline-none"
                     />
                   </div>
 
                   <div className="space-y-1.5">
                     <label className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider">Giá bán (Niêm yết)</label>
-                    <input 
+                    <input
                       type="number" name="gia_ban" value={formData.gia_ban || 0} onChange={handleInputChange} required
-                      className="w-full px-4 py-2 bg-background border border-border rounded-xl outline-none focus:ring-2 focus:ring-blue-600/20 text-[14px] font-bold" 
+                      className="w-full px-4 py-2 bg-background border border-border rounded-xl outline-none focus:ring-2 focus:ring-blue-600/20 text-[14px] font-bold"
                     />
                   </div>
 
                   <div className="space-y-1.5">
                     <label className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider">Giá vốn</label>
-                    <input 
+                    <input
                       type="number" name="gia_von" value={formData.gia_von || 0} onChange={handleInputChange}
-                      className="w-full px-4 py-2 bg-background border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/20 text-[14px]" 
+                      className="w-full px-4 py-2 bg-background border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/20 text-[14px]"
                     />
                   </div>
 
                   <div className="space-y-1.5">
                     <label className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider">Số lượng</label>
-                    <input 
+                    <input
                       type="number" name="so_luong" value={formData.so_luong || 1} onChange={handleInputChange} required
-                      className="w-full px-4 py-2 bg-background border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/20 text-[14px] font-bold" 
+                      className="w-full px-4 py-2 bg-background border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/20 text-[14px] font-bold"
                     />
                   </div>
 
                   <div className="space-y-1.5">
                     <label className="text-[12px] font-bold uppercase tracking-wider text-rose-500">Chi phí bổ sung</label>
-                    <input 
+                    <input
                       type="number" name="chi_phi" value={formData.chi_phi || 0} onChange={handleInputChange}
-                      className="w-full px-4 py-2 bg-background border border-border rounded-xl outline-none focus:ring-2 focus:ring-rose-500/20 text-[14px]" 
+                      className="w-full px-4 py-2 bg-background border border-border rounded-xl outline-none focus:ring-2 focus:ring-rose-500/20 text-[14px]"
                     />
                   </div>
 
                   <div className="md:col-span-2 space-y-1.5">
                     <label className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider">Ghi chú</label>
-                    <textarea 
+                    <textarea
                       name="ghi_chu" value={formData.ghi_chu || ''} onChange={handleInputChange}
-                      className="w-full px-4 py-2 bg-background border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/20 text-[14px] min-h-[80px]" 
+                      className="w-full px-4 py-2 bg-background border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/20 text-[14px] min-h-[80px]"
                     />
                   </div>
                 </div>

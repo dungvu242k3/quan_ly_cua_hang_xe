@@ -62,6 +62,18 @@ export const deletePersonnel = async (id: string): Promise<void> => {
   }
 };
 
+export const bulkDeletePersonnel = async (): Promise<void> => {
+  const { error } = await supabase
+    .from('nhan_su')
+    .delete()
+    .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all rows
+
+  if (error) {
+    console.error('Error bulk deleting personnel:', error);
+    throw error;
+  }
+};
+
 export const uploadPersonnelImage = async (file: File): Promise<string> => {
   const fileExt = file.name.split('.').pop();
   const fileName = `${Math.random()}.${fileExt}`;

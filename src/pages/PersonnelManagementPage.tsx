@@ -1,28 +1,39 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { 
-  Search, Plus, 
-  Edit2, Trash2, Camera, X, Save, 
-  Phone, Mail, User, Loader2,
-  ArrowLeft, ChevronDown, 
-  Building2, Briefcase,
-  Download, Upload
-} from 'lucide-react';
-import * as XLSX from 'xlsx';
-import { useNavigate } from 'react-router-dom';
 import { clsx } from 'clsx';
-import { getPersonnel, upsertPersonnel, deletePersonnel, uploadPersonnelImage, bulkUpsertPersonnel } from '../data/personnelData';
+import {
+  ArrowLeft,
+  Briefcase,
+  Building2,
+  Camera,
+  ChevronDown,
+  Download,
+  Edit2,
+  Loader2,
+  Mail,
+  Phone,
+  Plus,
+  Save,
+  Search,
+  Trash2,
+  Upload,
+  User,
+  X
+} from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import * as XLSX from 'xlsx';
 import type { NhanSu } from '../data/personnelData';
+import { bulkUpsertPersonnel, deletePersonnel, getPersonnel, uploadPersonnelImage, upsertPersonnel } from '../data/personnelData';
 
 const PersonnelManagementPage: React.FC = () => {
   const navigate = useNavigate();
   const [personnel, setPersonnel] = useState<NhanSu[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   // Filter states
   const [selectedBranches, setSelectedBranches] = useState<string[]>([]);
   const [selectedPositions, setSelectedPositions] = useState<string[]>([]);
-  
+
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -71,11 +82,11 @@ const PersonnelManagementPage: React.FC = () => {
 
   const filteredPersonnel = useMemo(() => {
     return personnel.filter(p => {
-      const matchSearch = 
+      const matchSearch =
         (p.ho_ten?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
         (p.email?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
         (p.sdt || '').includes(searchQuery);
-      
+
       const matchBranch = selectedBranches.length === 0 || selectedBranches.includes(p.co_so);
       const matchPosition = selectedPositions.length === 0 || selectedPositions.includes(p.vi_tri);
 
@@ -150,9 +161,11 @@ const PersonnelManagementPage: React.FC = () => {
   const handleDownloadTemplate = () => {
     const templateData = [
       {
+        "id": "",
         "Họ và tên": "Nguyễn Văn A",
-        "SĐT": "0912345678",
         "Email": "vana@gmail.com",
+        "SĐT": "0912345678",
+        "Hình ảnh": "",
         "Vị trí": "kỹ thuật viên",
         "Cơ sở": "Cơ sở Bắc Giang"
       }
@@ -175,23 +188,67 @@ const PersonnelManagementPage: React.FC = () => {
         const wb = XLSX.read(bstr, { type: 'binary' });
         const ws = wb.Sheets[wb.SheetNames[0]];
         const data = XLSX.utils.sheet_to_json(ws) as any[];
+        console.log('Raw Excel Data (Row 1):', data[0]);
 
-        const formattedData: Partial<NhanSu>[] = data.map(item => ({
-          ho_ten: item["Họ và tên"] || '',
-          sdt: String(item["SĐT"] || ''),
-          email: item["Email"] || '',
-          vi_tri: String(item["Vị trí"]).toLowerCase() || 'kỹ thuật viên',
-          co_so: item["Cơ sở"] || 'Cơ sở Bắc Giang'
-        }));
+        const formattedData: Partial<NhanSu>[] = data.map(item => {
+          // Normalize keys (trim whitespace for robustness)
+          const norm: any = {};
+          Object.keys(item).forEach(k => {
+            norm[String(k).trim()] = item[k];
+          });
+
+          // Fuzzy Name Matching (User's file has "Menu", expected "Họ và tên")
+          const ho_ten = String(
+            norm["Họ và tên"] ||
+            norm["Họ tên"] ||
+            norm["Tên"] ||
+            norm["Menu"] ||
+            ''
+          ).trim();
+
+          // Fuzzy Position/Branch
+          const vi_tri = String(norm["Vị trí"] || norm["Phân quyền"] || 'kỹ thuật viên').trim().toLowerCase();
+          const co_so = String(norm["Cơ sở"] || norm["Hạng mục"] || 'Cơ sở Bắc Giang').trim();
+
+          // Skip if no name found
+          if (!ho_ten || ho_ten === 'undefined' || ho_ten === '') {
+            return null;
+          }
+
+          const record: Partial<NhanSu> = {
+            ho_ten,
+            email: norm["Email"] ? String(norm["Email"]).trim() : null,
+            sdt: norm["SĐT"] || norm["SDT"] || norm["Điện thoại"] ? String(norm["SĐT"] || norm["SDT"] || norm["Điện thoại"]).trim() : null,
+            hinh_anh: norm["Hình ảnh"] || norm["Ảnh"] ? String(norm["Hình ảnh"] || norm["Ảnh"]).trim() : null,
+            vi_tri,
+            co_so
+          };
+
+          const rawId = norm["id"] ? String(norm["id"]).trim() : '';
+          // Strict UUID validation to prevent 400 errors from values like "m10"
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          if (rawId && uuidRegex.test(rawId)) {
+            record.id = rawId;
+          }
+
+          return record;
+        }).filter(Boolean) as Partial<NhanSu>[];
+
+        console.log('Formatted Data for Import:', formattedData);
 
         if (formattedData.length > 0) {
           setLoading(true);
-          await bulkUpsertPersonnel(formattedData);
-          await loadPersonnel();
-          alert(`Đã nhập thành công ${formattedData.length} nhân sự!`);
+          try {
+            await bulkUpsertPersonnel(formattedData);
+            await loadPersonnel();
+            alert(`Đã nhập thành công ${formattedData.length} bản ghi nhân sự!`);
+          } catch (err: any) {
+            console.error('Full Error Object:', err);
+            alert(`Lỗi khi lưu dữ liệu: ${err.message || 'Kiểm tra console để biết chi tiết'}`);
+          }
         }
       } catch (error) {
-        console.error(error);
+        console.error('Import Error:', error);
         alert("Lỗi khi đọc file Excel.");
       } finally {
         setLoading(false);
@@ -225,15 +282,15 @@ const PersonnelManagementPage: React.FC = () => {
               <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60">
                 <Search size={18} />
               </div>
-              <input 
+              <input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-1.5 border border-border rounded text-[13px] focus:ring-1 focus:ring-primary focus:border-primary placeholder-slate-400 outline-none" 
-                placeholder="Tìm tên, email, SĐT..." 
+                className="w-full pl-9 pr-4 py-1.5 border border-border rounded text-[13px] focus:ring-1 focus:ring-primary focus:border-primary placeholder-slate-400 outline-none"
+                placeholder="Tìm tên, email, SĐT..."
                 type="text"
               />
             </div>
-            
+
             <div className="flex flex-wrap items-center gap-2">
               {/* Branch Dropdown */}
               <div className="relative">
@@ -246,8 +303,8 @@ const PersonnelManagementPage: React.FC = () => {
                     <ul className="py-1 text-[13px] text-muted-foreground">
                       {branchOptions.map(branch => (
                         <li key={branch} className="px-3 py-2 hover:bg-accent cursor-pointer flex items-center gap-2">
-                          <input 
-                            type="checkbox" 
+                          <input
+                            type="checkbox"
                             checked={selectedBranches.includes(branch)}
                             onChange={() => handleFilterChange(setSelectedBranches, branch)}
                             className="rounded border-border text-primary size-4"
@@ -270,8 +327,8 @@ const PersonnelManagementPage: React.FC = () => {
                     <ul className="py-1 text-[13px] text-muted-foreground">
                       {positionOptions.map(pos => (
                         <li key={pos} className="px-3 py-2 hover:bg-accent cursor-pointer flex items-center gap-2">
-                          <input 
-                            type="checkbox" 
+                          <input
+                            type="checkbox"
                             checked={selectedPositions.includes(pos)}
                             onChange={() => handleFilterChange(setSelectedPositions, pos)}
                             className="rounded border-border text-primary size-4"
@@ -287,7 +344,7 @@ const PersonnelManagementPage: React.FC = () => {
 
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
-              <button 
+              <button
                 onClick={handleDownloadTemplate}
                 className="flex items-center gap-2 px-3 py-1.5 border border-border rounded text-[13px] text-muted-foreground hover:bg-accent transition-colors font-medium bg-card"
                 title="Tải mẫu Excel"
@@ -296,7 +353,7 @@ const PersonnelManagementPage: React.FC = () => {
                 <span>Tải mẫu</span>
               </button>
               <div className="relative">
-                <button 
+                <button
                   onClick={() => document.getElementById('excel-import')?.click()}
                   className="flex items-center gap-2 px-3 py-1.5 border border-border rounded text-[13px] text-muted-foreground hover:bg-accent transition-colors font-medium bg-card"
                   title="Nhập nhân sự từ Excel"
@@ -304,17 +361,17 @@ const PersonnelManagementPage: React.FC = () => {
                   <Upload size={18} />
                   <span>Nhập Excel</span>
                 </button>
-                <input 
+                <input
                   id="excel-import"
-                  type="file" 
-                  accept=".xlsx, .xls" 
-                  className="hidden" 
-                  onChange={handleImportExcel} 
+                  type="file"
+                  accept=".xlsx, .xls"
+                  className="hidden"
+                  onChange={handleImportExcel}
                 />
               </div>
             </div>
 
-            <button 
+            <button
               onClick={() => handleOpenModal()}
               className="bg-primary hover:bg-primary/90 text-white px-5 py-1.5 rounded flex items-center gap-2 text-[14px] font-semibold transition-colors"
             >
@@ -340,12 +397,12 @@ const PersonnelManagementPage: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-slate-100 text-[13px]">
                 {loading ? (
-                   <tr>
-                     <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">
-                       <Loader2 className="animate-spin inline-block mr-2" size={20} />
-                       Đang tải dữ liệu...
-                     </td>
-                   </tr>
+                  <tr>
+                    <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">
+                      <Loader2 className="animate-spin inline-block mr-2" size={20} />
+                      Đang tải dữ liệu...
+                    </td>
+                  </tr>
                 ) : filteredPersonnel.map(person => (
                   <tr key={person.id} className="hover:bg-muted/80 transition-colors">
                     <td className="px-4 py-4">
@@ -405,8 +462,8 @@ const PersonnelManagementPage: React.FC = () => {
                       {formData.hinh_anh ? <img src={formData.hinh_anh} alt="Preview" className="w-full h-full object-cover" /> : <User size={40} />}
                       {uploading && <div className="absolute inset-0 bg-black/40 flex items-center justify-center"><Loader2 className="animate-spin text-white" /></div>}
                     </div>
-                    <button 
-                      type="button" 
+                    <button
+                      type="button"
                       onClick={() => fileInputRef.current?.click()}
                       className="absolute bottom-0 right-0 w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-all"
                     >
@@ -420,7 +477,7 @@ const PersonnelManagementPage: React.FC = () => {
                   <InputField label="Họ và tên" name="ho_ten" value={formData.ho_ten ?? ''} onChange={handleInputChange} icon={User} required placeholder="Nguyễn Văn A" />
                   <InputField label="SĐT" name="sdt" value={formData.sdt ?? ''} onChange={handleInputChange} icon={Phone} placeholder="09xxxxxxx" />
                   <InputField label="Email" name="email" value={formData.email ?? ''} onChange={handleInputChange} icon={Mail} placeholder="email@example.com" />
-                  
+
                   <div className="space-y-1.5">
                     <label className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2"><Briefcase size={14} className="text-primary/70" />Vị trí</label>
                     <select name="vi_tri" value={formData.vi_tri} onChange={handleInputChange} className="w-full px-4 py-2 bg-background border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/20 text-[14px]">
@@ -451,11 +508,11 @@ const PersonnelManagementPage: React.FC = () => {
   );
 };
 
-const InputField: React.FC<{ 
-  label: string, 
-  name: string, 
-  value?: string, 
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void, 
+const InputField: React.FC<{
+  label: string,
+  name: string,
+  value?: string,
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void,
   icon: React.ElementType,
   required?: boolean,
   placeholder?: string
@@ -465,9 +522,9 @@ const InputField: React.FC<{
       <Icon size={14} className="text-primary/70" />
       {label} {required && <span className="text-red-500">*</span>}
     </label>
-    <input 
+    <input
       type="text" name={name} value={value || ''} onChange={onChange} required={required} placeholder={placeholder}
-      className="w-full px-4 py-2 bg-background border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/20 text-[14px]" 
+      className="w-full px-4 py-2 bg-background border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/20 text-[14px]"
     />
   </div>
 );

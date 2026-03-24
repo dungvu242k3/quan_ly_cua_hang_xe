@@ -11,6 +11,7 @@ export interface KhachHang {
   so_km: number; // Số Km
   so_ngay_thay_dau: number; // Số ngày thay dầu (chu kỳ)
   ngay_thay_dau: string; // Ngày thay dầu
+  ma_khach_hang?: string; // Mã khách hàng (Legacy/Short ID)
 }
 
 export const getCustomers = async (): Promise<KhachHang[]> => {
@@ -60,6 +61,18 @@ export const deleteCustomer = async (id: string): Promise<void> => {
 
   if (error) {
     console.error('Error deleting customer:', error);
+    throw error;
+  }
+};
+
+export const bulkDeleteCustomers = async (): Promise<void> => {
+  const { error } = await supabase
+    .from('khach_hang')
+    .delete()
+    .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all rows
+
+  if (error) {
+    console.error('Error bulk deleting customers:', error);
     throw error;
   }
 };

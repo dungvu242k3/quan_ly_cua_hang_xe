@@ -11,7 +11,7 @@ import {
 import * as XLSX from 'xlsx';
 import { useNavigate } from 'react-router-dom';
 import { clsx } from 'clsx';
-import { getInventoryRecords, addInventoryRecord, deleteInventoryRecord, bulkInsertInventoryRecords } from '../data/inventoryData';
+import { getInventoryRecords, addInventoryRecord, deleteInventoryRecord, bulkInsertInventoryRecords, deleteAllInventoryRecords } from '../data/inventoryData';
 import type { InventoryRecord } from '../data/inventoryData';
 
 const InventoryManagementPage: React.FC = () => {
@@ -37,6 +37,7 @@ const InventoryManagementPage: React.FC = () => {
   ]);
 
   const allColumns = [
+    { id: 'id', label: 'ID' },
     { id: 'loai_phieu', label: 'Loại phiếu' },
     { id: 'id_don_hang', label: 'Mã đơn hàng' },
     { id: 'co_so', label: 'Cơ sở' },
@@ -204,6 +205,7 @@ const InventoryManagementPage: React.FC = () => {
       {
         "Ngày": "2024-03-24",
         "Giờ": "10:30",
+        "ID": "Optional: UUID format",
         "Loại phiếu": "Nhập kho",
         "Mã đơn hàng": "DH-001",
         "Cơ sở": "Cơ sở Bắc Giang",
@@ -220,6 +222,21 @@ const InventoryManagementPage: React.FC = () => {
     XLSX.writeFile(workbook, "Mau_nhap_kho.xlsx");
   };
 
+  const handleDeleteAll = async () => {
+    if (window.confirm('CẢNH BÁO: Hành động này sẽ xóa TOÀN BỘ lịch sử xuất nhập kho. Bạn có chắc chắn muốn tiếp tục?')) {
+      try {
+        setLoading(true);
+        await deleteAllInventoryRecords();
+        await loadRecords();
+        alert('Đã xóa toàn bộ lịch sử kho.');
+      } catch (error) {
+        alert('Lỗi: Không thể xóa toàn bộ dữ liệu.');
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
   const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -232,21 +249,65 @@ const InventoryManagementPage: React.FC = () => {
         const ws = wb.Sheets[wb.SheetNames[0]];
         const data = XLSX.utils.sheet_to_json(ws) as any[];
 
-        const formattedData: Omit<InventoryRecord, 'id' | 'created_at'>[] = data.map(item => {
-          const so_luong = Number(item["Số lượng"]) || 0;
-          const gia = Number(item["Giá"]) || 0;
-          return {
-            ngay: item["Ngày"] || new Date().toISOString().split('T')[0],
-            gio: item["Giờ"] || "08:00",
-            loai_phieu: item["Loại phiếu"] || 'Nhập kho',
-            id_don_hang: item["Mã đơn hàng"] || '',
-            co_so: item["Cơ sở"] || 'Cơ sở Bắc Giang',
-            ten_mat_hang: item["Tên mặt hàng"] || '',
+        const formattedData: (Omit<InventoryRecord, 'id' | 'created_at'> & { id?: string })[] = data.map(item => {
+          const norm: any = {};
+          Object.keys(item).forEach(k => {
+            norm[String(k).trim().toLowerCase().replace(/\s+/g, ' ')] = item[k];
+          });
+
+          const getValue = (keys: string[]) => {
+            const k = keys.find(key => norm[key.toLowerCase().replace(/\s+/g, ' ')] !== undefined);
+            return k ? norm[k.toLowerCase().replace(/\s+/g, ' ')] : undefined;
+          };
+
+          const formatExcelDate = (val: any) => {
+            if (!val) return null;
+            if (typeof val === 'number') {
+              const date = new Date((val - 25569) * 86400 * 1000);
+              return date.toISOString().split('T')[0];
+            }
+            if (typeof val === 'string' && val.includes('/')) {
+              const [d, m, y] = val.split('/');
+              return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+            }
+            return String(val).split('T')[0];
+          };
+
+          const formatExcelTime = (val: any) => {
+             if (!val) return "08:00";
+             if (typeof val === 'number') {
+                const totalSeconds = Math.round(val * 86400);
+                const hours = Math.floor(totalSeconds / 3600);
+                const minutes = Math.floor((totalSeconds % 3600) / 60);
+                return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+             }
+             return String(val).substring(0, 5);
+          };
+
+          const so_luong = Math.round(Number(getValue(['Số lượng', 'số lượng', 'quantity'])) || 0);
+          const gia = Math.round(Number(getValue(['Giá', 'giá', 'đơn giá', 'price'])) || 0);
+          const tong_tien = Math.round(Number(getValue(['Tổng tiền', 'thành tiền', 'tổng', 'total'])) || (so_luong * gia));
+
+          const record: any = {
+            ngay: formatExcelDate(getValue(['Ngày', 'ngày', 'date'])) || new Date().toISOString().split('T')[0],
+            gio: formatExcelTime(getValue(['Giờ', 'giờ', 'time'])),
+            loai_phieu: getValue(['Loại phiếu', 'loại', 'type']) || 'Nhập kho',
+            id_don_hang: String(getValue(['id đơn hàng', 'ID đơn hàng', 'order_id', 'mã đơn']) || '').trim(),
+            co_so: getValue(['Cơ sở', 'cơ sở', 'chi nhánh', 'branch']) || 'Cơ sở Bắc Giang',
+            ten_mat_hang: String(getValue(['Tên mặt hàng', 'tên', 'sản phẩm', 'item_name']) || 'Mặt hàng mới').trim(),
             so_luong,
             gia,
-            tong_tien: so_luong * gia,
-            nguoi_thuc_hien: item["Người thực hiện"] || ''
+            tong_tien,
+            nguoi_thuc_hien: getValue(['Người thực hiện', 'nhân viên', 'performer']) || ''
           };
+
+          const rawId = String(getValue(['id', 'ID', 'uuid', 'mã']) || '').trim();
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          if (rawId && uuidRegex.test(rawId)) {
+            record.id = rawId;
+          }
+
+          return record;
         });
 
         if (formattedData.length > 0) {
@@ -438,6 +499,14 @@ const InventoryManagementPage: React.FC = () => {
                 </div>
               )}
             </div>
+            <button
+              onClick={handleDeleteAll}
+              className="px-3 py-1.5 border border-red-200 rounded text-[13px] text-red-600 hover:bg-red-50 transition-colors font-medium bg-white flex items-center gap-2"
+              title="Xóa toàn bộ dữ liệu"
+            >
+              <Trash2 size={18} />
+              <span>Xóa tất cả</span>
+            </button>
             <button 
               onClick={() => handleOpenModal()}
               className="bg-primary hover:bg-primary/90 text-white px-5 py-1.5 rounded flex items-center gap-2 text-[14px] font-semibold transition-colors"
@@ -454,6 +523,7 @@ const InventoryManagementPage: React.FC = () => {
               <thead>
                 <tr className="bg-muted border-b border-border text-muted-foreground text-[12px] font-bold uppercase tracking-wider">
                   <th className="px-4 py-3 w-10 text-center"><input className="rounded border-border text-primary size-4" type="checkbox" /></th>
+                  {visibleColumns.includes('id') && <th className="px-4 py-3 font-semibold">ID</th>}
                   {visibleColumns.includes('loai_phieu') && <th className="px-4 py-3 font-semibold text-center">Loại phiếu</th>}
                   {visibleColumns.includes('id_don_hang') && <th className="px-4 py-3 font-semibold">Mã đơn hàng</th>}
                   {visibleColumns.includes('ten_mat_hang') && <th className="px-4 py-3 font-semibold">Sản phẩm</th>}
@@ -479,6 +549,11 @@ const InventoryManagementPage: React.FC = () => {
                   return (
                     <tr key={record.id} className="hover:bg-muted/80 transition-colors">
                       <td className="px-4 py-4 text-center"><input className="rounded border-border text-primary size-4" type="checkbox" /></td>
+                      {visibleColumns.includes('id') && (
+                        <td className="px-4 py-4 font-mono text-[10px] text-muted-foreground max-w-[80px] truncate" title={record.id}>
+                          {record.id}
+                        </td>
+                      )}
                       {visibleColumns.includes('loai_phieu') && (
                         <td className="px-4 py-4 text-center">
                           <span className={clsx(

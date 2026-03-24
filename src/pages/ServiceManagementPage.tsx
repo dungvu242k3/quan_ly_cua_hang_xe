@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useNavigate } from 'react-router-dom';
-import { getServices, upsertService, deleteService, uploadServiceImage, bulkUpsertServices } from '../data/serviceData';
+import { getServices, upsertService, deleteService, uploadServiceImage, bulkUpsertServices, deleteAllServices } from '../data/serviceData';
 import type { DichVu } from '../data/serviceData';
 
 const ServiceManagementPage: React.FC = () => {
@@ -151,6 +151,7 @@ const ServiceManagementPage: React.FC = () => {
     const templateData = [
       {
         "Tên dịch vụ": "Bảo dưỡng toàn bộ",
+        "ID": "Optional: UUID format",
         "Cơ sở": "Cơ sở Bắc Giang",
         "Giá nhập": 200000,
         "Giá bán": 350000,
@@ -166,6 +167,21 @@ const ServiceManagementPage: React.FC = () => {
     XLSX.writeFile(workbook, "Mau_nhap_dich_vu.xlsx");
   };
 
+  const handleDeleteAll = async () => {
+    if (window.confirm('CẢNH BÁO: Hành động này sẽ xóa TOÀN BỘ danh sách dịch vụ. Bạn có chắc chắn muốn tiếp tục?')) {
+      try {
+        setLoading(true);
+        await deleteAllServices();
+        await loadServices();
+        alert('Đã xóa toàn bộ dịch vụ.');
+      } catch (error) {
+        alert('Lỗi: Không thể xóa toàn bộ dịch vụ.');
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
   const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -178,15 +194,49 @@ const ServiceManagementPage: React.FC = () => {
         const ws = wb.Sheets[wb.SheetNames[0]];
         const data = XLSX.utils.sheet_to_json(ws) as any[];
 
-        const formattedData: Partial<DichVu>[] = data.map(item => ({
-          ten_dich_vu: item["Tên dịch vụ"] || '',
-          co_so: item["Cơ sở"] || 'Cơ sở Bắc Giang',
-          gia_nhap: Number(item["Giá nhập"]) || 0,
-          gia_ban: Number(item["Giá bán"]) || 0,
-          hoa_hong: Number(item["Hoa hồng"]) || 0,
-          tu_ngay: item["Từ ngày"] || null,
-          toi_ngay: item["Tới ngày"] || null
-        }));
+        const formattedData: Partial<DichVu>[] = data.map(item => {
+          const norm: any = {};
+          Object.keys(item).forEach(k => {
+            norm[String(k).trim().toLowerCase().replace(/\s+/g, ' ')] = item[k];
+          });
+
+          const getValue = (keys: string[]) => {
+            const k = keys.find(key => norm[key.toLowerCase().replace(/\s+/g, ' ')] !== undefined);
+            return k ? norm[k.toLowerCase().replace(/\s+/g, ' ')] : undefined;
+          };
+
+          const formatExcelDate = (val: any) => {
+            if (!val) return null;
+            if (typeof val === 'number') {
+              const date = new Date((val - 25569) * 86400 * 1000);
+              return date.toISOString().split('T')[0];
+            }
+            if (typeof val === 'string' && val.includes('/')) {
+              const [d, m, y] = val.split('/');
+              return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+            }
+            return String(val).split('T')[0];
+          };
+
+          const record: Partial<DichVu> = {
+            co_so: getValue(['Cơ sở', 'cơ sở', 'chi nhánh', 'branch']) || 'Cơ sở Bắc Giang',
+            ten_dich_vu: String(getValue(['Tên dịch vụ', 'tên', 'dịch vụ', 'service_name']) || 'Dịch vụ mới').trim(),
+            gia_nhap: Math.round(Number(getValue(['Giá nhập', 'giá nhập', 'vốn', 'cost'])) || 0),
+            gia_ban: Math.round(Number(getValue(['Giá', 'giá', 'giá lẻ', 'giá bán', 'price'])) || 0),
+            anh: getValue(['Ảnh', 'ảnh', 'image', 'hình ảnh']) || null,
+            hoa_hong: Math.round(Number(getValue(['Hoa hồng', 'hoa hồng', 'chiết khấu', 'commission'])) || 0),
+            tu_ngay: formatExcelDate(getValue(['Từ ngày', 'từ ngày', 'start_date'])),
+            toi_ngay: formatExcelDate(getValue(['Tới ngày', 'tới ngày', 'end_date']))
+          };
+
+          const rawId = String(getValue(['id', 'ID', 'uuid', 'mã']) || '').trim();
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          if (rawId && uuidRegex.test(rawId)) {
+            record.id = rawId;
+          }
+
+          return record;
+        });
 
         if (formattedData.length > 0) {
           setLoading(true);
@@ -306,6 +356,15 @@ const ServiceManagementPage: React.FC = () => {
               </div>
             </div>
 
+            <button
+              onClick={handleDeleteAll}
+              className="px-3 py-1.5 border border-red-200 rounded text-[13px] text-red-600 hover:bg-red-50 transition-colors font-medium bg-white flex items-center gap-2"
+              title="Xóa toàn bộ dữ liệu"
+            >
+              <Trash2 size={18} />
+              <span>Xóa tất cả</span>
+            </button>
+
             <button 
               onClick={() => handleOpenModal()}
               className="bg-primary hover:bg-primary/90 text-white px-5 py-1.5 rounded flex items-center gap-2 text-[14px] font-semibold transition-colors"
@@ -323,6 +382,7 @@ const ServiceManagementPage: React.FC = () => {
                 <tr className="bg-muted border-b border-border text-muted-foreground text-[12px] font-bold uppercase tracking-wider">
                   <th className="px-4 py-3 font-semibold">Ảnh</th>
                   <th className="px-4 py-3 font-semibold">Cơ sở</th>
+                  <th className="px-4 py-3 font-semibold">ID</th>
                   <th className="px-4 py-3 font-semibold">Tên dịch vụ</th>
                   <th className="px-4 py-3 font-semibold text-right">Giá nhập</th>
                   <th className="px-4 py-3 font-semibold text-right">Giá bán</th>
@@ -351,6 +411,9 @@ const ServiceManagementPage: React.FC = () => {
                       )}
                     </td>
                     <td className="px-4 py-4">{service.co_so}</td>
+                    <td className="px-4 py-4 font-mono text-[10px] text-muted-foreground max-w-[80px] truncate" title={service.id}>
+                      {service.id}
+                    </td>
                     <td className="px-4 py-4 font-bold text-foreground">{service.ten_dich_vu}</td>
                     <td className="px-4 py-4 text-right text-muted-foreground">{formatCurrency(service.gia_nhap)}</td>
                     <td className="px-4 py-4 text-right font-black text-primary">{formatCurrency(service.gia_ban)}</td>

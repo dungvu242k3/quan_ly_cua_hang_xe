@@ -10,7 +10,7 @@ import {
 import * as XLSX from 'xlsx';
 import { useNavigate } from 'react-router-dom';
 import { clsx } from 'clsx';
-import { getTransactions, upsertTransaction, deleteTransaction, uploadTransactionImage, bulkUpsertTransactions } from '../data/financialData';
+import { getTransactions, upsertTransaction, deleteTransaction, uploadTransactionImage, bulkUpsertTransactions, deleteAllTransactions } from '../data/financialData';
 import type { ThuChi } from '../data/financialData';
 
 const FinancialManagementPage: React.FC = () => {
@@ -175,6 +175,7 @@ const FinancialManagementPage: React.FC = () => {
         "Số tiền": 500000,
         "Danh mục": "Thu tiền sửa xe",
         "Trạng thái": "Hoàn thành",
+        "ID": "Optional: UUID format",
         "ID Đơn": "ORD-123",
         "ID Khách hàng": "0912345678",
         "Ghi chú": "Thanh toán tiền mặt"
@@ -185,6 +186,21 @@ const FinancialManagementPage: React.FC = () => {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "MauThuChi");
     XLSX.writeFile(workbook, "Mau_nhap_thu_chi.xlsx");
+  };
+
+  const handleDeleteAll = async () => {
+    if (window.confirm('CẢNH BÁO: Hành động này sẽ xóa TOÀN BỘ dữ liệu thu chi. Bạn có chắc chắn muốn tiếp tục?')) {
+      try {
+        setLoading(true);
+        await deleteAllTransactions();
+        await loadTransactions();
+        alert('Đã xóa toàn bộ dữ liệu.');
+      } catch (error) {
+        alert('Lỗi: Không thể xóa toàn bộ dữ liệu.');
+      } finally {
+        setLoading(false);
+      }
+    }
   };
 
   const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -199,18 +215,63 @@ const FinancialManagementPage: React.FC = () => {
         const ws = wb.Sheets[wb.SheetNames[0]];
         const data = XLSX.utils.sheet_to_json(ws) as any[];
 
-        const formattedData: Partial<ThuChi>[] = data.map(item => ({
-          ngay: item["Ngày"] || new Date().toISOString().split('T')[0],
-          gio: item["Giờ"] || "08:00",
-          loai_phieu: String(item["Loại phiếu"]).toLowerCase() || 'phiếu thu',
-          co_so: item["Cơ sở"] || 'Cơ sở Bắc Giang',
-          so_tien: Number(item["Số tiền"]) || 0,
-          danh_muc: item["Danh mục"] || '',
-          trang_thai: item["Trạng thái"] || 'Hoàn thành',
-          id_don: item["ID Đơn"] || '',
-          id_khach_hang: item["ID Khách hàng"] || '',
-          ghi_chu: item["Ghi chú"] || ''
-        }));
+        const formattedData: Partial<ThuChi>[] = data.map(item => {
+          const norm: any = {};
+          Object.keys(item).forEach(k => {
+            norm[String(k).trim().toLowerCase().replace(/\s+/g, ' ')] = item[k];
+          });
+
+          const getValue = (keys: string[]) => {
+            const k = keys.find(key => norm[key.toLowerCase().replace(/\s+/g, ' ')] !== undefined);
+            return k ? norm[k.toLowerCase().replace(/\s+/g, ' ')] : undefined;
+          };
+
+          const formatExcelDate = (val: any) => {
+            if (!val) return null;
+            if (typeof val === 'number') {
+              const date = new Date((val - 25569) * 86400 * 1000);
+              return date.toISOString().split('T')[0];
+            }
+            if (typeof val === 'string' && val.includes('/')) {
+              const [d, m, y] = val.split('/');
+              return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+            }
+            return String(val).split('T')[0];
+          };
+
+          const formatExcelTime = (val: any) => {
+             if (!val) return "08:00";
+             if (typeof val === 'number') {
+                const totalSeconds = Math.round(val * 86400);
+                const hours = Math.floor(totalSeconds / 3600);
+                const minutes = Math.floor((totalSeconds % 3600) / 60);
+                return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+             }
+             return String(val).substring(0, 5);
+          };
+
+          const record: Partial<ThuChi> = {
+            ngay: formatExcelDate(getValue(['Ngày', 'ngày', 'date'])) || new Date().toISOString().split('T')[0],
+            gio: formatExcelTime(getValue(['Giờ', 'giờ', 'time'])),
+            loai_phieu: String(getValue(['Loại phiếu', 'loại', 'type']) || 'phiếu thu').toLowerCase(),
+            co_so: getValue(['Cơ sở', 'cơ sở', 'chi nhánh', 'branch']) || 'Cơ sở Bắc Giang',
+            so_tien: Math.round(Number(getValue(['Số tiền', 'số tiền', 'tiền', 'amount', 'tổng'])) || 0),
+            danh_muc: getValue(['Danh mục', 'danh mục', 'category', 'phân loại']) || '',
+            trang_thai: getValue(['Trạng thái', 'trạng thái', 'status']) || 'Hoàn thành',
+            id_don: String(getValue(['id đơn', 'ID đơn', 'order_id', 'mã đơn']) || '').trim(),
+            id_khach_hang: String(getValue(['id khách hàng', 'ID khách hàng', 'customer_id', 'Mã KH']) || '').trim(),
+            ghi_chu: getValue(['Ghi chú', 'ghi chú', 'note']) || '',
+            anh: getValue(['ảnh', 'Ảnh', 'image', 'hình ảnh']) || null
+          };
+
+          const rawId = String(getValue(['id', 'ID', 'uuid', 'mã']) || '').trim();
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          if (rawId && uuidRegex.test(rawId)) {
+            record.id = rawId;
+          }
+
+          return record;
+        });
 
         if (formattedData.length > 0) {
           setLoading(true);
@@ -362,6 +423,15 @@ const FinancialManagementPage: React.FC = () => {
               </div>
             </div>
 
+            <button
+              onClick={handleDeleteAll}
+              className="px-3 py-1.5 border border-red-200 rounded text-[13px] text-red-600 hover:bg-red-50 transition-colors font-medium bg-white flex items-center gap-2"
+              title="Xóa toàn bộ dữ liệu"
+            >
+              <Trash2 size={18} />
+              <span>Xóa tất cả</span>
+            </button>
+
             <button 
               onClick={() => handleOpenModal()}
               className="bg-primary hover:bg-primary/90 text-white px-5 py-1.5 rounded flex items-center gap-2 text-[14px] font-semibold transition-colors"
@@ -379,6 +449,7 @@ const FinancialManagementPage: React.FC = () => {
                 <tr className="bg-muted border-b border-border text-muted-foreground text-[12px] font-bold uppercase tracking-wider">
                   <th className="px-4 py-3 font-semibold">Ảnh</th>
                   <th className="px-4 py-3 font-semibold text-center">Ngày</th>
+                  <th className="px-4 py-3 font-semibold">ID</th>
                   <th className="px-4 py-3 font-semibold text-center">Giờ</th>
                   <th className="px-4 py-3 font-semibold">Loại</th>
                   <th className="px-4 py-3 font-semibold">Danh mục</th>
@@ -411,6 +482,9 @@ const FinancialManagementPage: React.FC = () => {
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap text-center font-medium text-foreground">
                       {new Date(transaction.ngay).toLocaleDateString('vi-VN')}
+                    </td>
+                    <td className="px-4 py-4 font-mono text-[10px] text-muted-foreground max-w-[80px] truncate" title={transaction.id}>
+                      {transaction.id}
                     </td>
                     <td className="px-4 py-4 text-center text-muted-foreground">{transaction.gio}</td>
                     <td className="px-4 py-4">
