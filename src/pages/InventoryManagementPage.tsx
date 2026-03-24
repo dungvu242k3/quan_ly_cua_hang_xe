@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
   Search, Plus, 
   Edit2, Trash2, X, Save, 
-  MapPin, Calendar, CreditCard,
+  Calendar,
   Settings, Loader2,
   ArrowLeft, ChevronDown, List, 
   Building2, Hash, DollarSign, Package, Clock, User

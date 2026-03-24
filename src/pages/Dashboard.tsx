@@ -54,7 +54,7 @@ const Dashboard: React.FC = () => {
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="mb-6 lg:mb-8">
         <h1 className="text-xl lg:text-2xl font-bold flex items-center gap-2 text-foreground">
-          Chào buổi tối, <span className="text-primary">Lê Minh Công</span> 👋
+          Chào buổi tối 👋
         </h1>
       </div>
 

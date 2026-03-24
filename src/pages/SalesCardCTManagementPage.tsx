@@ -306,7 +306,7 @@ const SalesCardCTManagementPage: React.FC = () => {
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider text-primary">Giá bán (Niêm yết)</label>
+                    <label className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider">Giá bán (Niêm yết)</label>
                     <input 
                       type="number" name="gia_ban" value={formData.gia_ban || 0} onChange={handleInputChange} required
                       className="w-full px-4 py-2 bg-background border border-border rounded-xl outline-none focus:ring-2 focus:ring-blue-600/20 text-[14px] font-bold" 
@@ -330,7 +330,7 @@ const SalesCardCTManagementPage: React.FC = () => {
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider text-rose-500">Chi phí bổ sung</label>
+                    <label className="text-[12px] font-bold uppercase tracking-wider text-rose-500">Chi phí bổ sung</label>
                     <input 
                       type="number" name="chi_phi" value={formData.chi_phi || 0} onChange={handleInputChange}
                       className="w-full px-4 py-2 bg-background border border-border rounded-xl outline-none focus:ring-2 focus:ring-rose-500/20 text-[14px]" 
