@@ -15,9 +15,9 @@ export const moduleData: Record<string, { section: string; items: ModuleCardProp
       section: 'Quản lý bán hàng',
       items: [
         { icon: Users, title: 'Khách hàng', description: 'Quản lý danh sách và thông tin khách hàng.', colorScheme: 'blue', path: '/ban-hang/khach-hang' },
-        { icon: ShoppingCart, title: 'Bán hàng', description: 'Lập hóa đơn và quản lý giao dịch bán hàng.', colorScheme: 'green' },
-        { icon: Wallet, title: 'Thu chi', description: 'Theo dõi các khoản thu và chi tiết tài chính.', colorScheme: 'orange' },
-        { icon: Wrench, title: 'Dịch vụ', description: 'Quản lý các gói dịch vụ và tiến độ sửa chữa.', colorScheme: 'purple' }
+        { icon: ShoppingCart, title: 'Bán hàng', description: 'Lập hóa đơn và quản lý giao dịch bán hàng.', colorScheme: 'green', path: '/ban-hang/phieu-ban-hang' },
+        { icon: Wallet, title: 'Thu chi', description: 'Quản lý thu chi, dòng tiền và chứng từ tài chính.', colorScheme: 'orange', path: '/ban-hang/thu-chi' },
+        { icon: Wrench, title: 'Dịch vụ', description: 'Quản lý các gói dịch vụ và tiến độ sửa chữa.', colorScheme: 'purple', path: '/ban-hang/dich-vu' }
       ]
     }
   ],

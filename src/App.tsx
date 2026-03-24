@@ -5,6 +5,9 @@ import PersonnelManagementPage from './pages/PersonnelManagementPage';
 import CustomerManagementPage from './pages/CustomerManagementPage';
 import Dashboard from './pages/Dashboard';
 import InventoryManagementPage from './pages/InventoryManagementPage';
+import FinancialManagementPage from './pages/FinancialManagementPage';
+import ServiceManagementPage from './pages/ServiceManagementPage';
+import SalesCardManagementPage from './pages/SalesCardManagementPage';
 import ModulePage from './pages/ModulePage';
 
 function App() {
@@ -15,6 +18,9 @@ function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/ban-hang" element={<ModulePage />} />
           <Route path="/ban-hang/khach-hang" element={<CustomerManagementPage />} />
+          <Route path="/ban-hang/thu-chi" element={<FinancialManagementPage />} />
+          <Route path="/ban-hang/dich-vu" element={<ServiceManagementPage />} />
+          <Route path="/ban-hang/phieu-ban-hang" element={<SalesCardManagementPage />} />
           <Route path="/nhan-su" element={<ModulePage />} />
           <Route path="/nhan-su/ung-vien" element={<PersonnelManagementPage />} />
           <Route path="/nhan-su/bang-cham-cong" element={<AttendanceManagementPage />} />
