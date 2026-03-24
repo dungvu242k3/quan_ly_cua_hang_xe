@@ -1,10 +1,19 @@
+import { clsx } from 'clsx';
+import {
+  Briefcase,
+  Calendar,
+  ChevronRight,
+  FileText,
+  Mail,
+  MapPin,
+  Phone,
+  Plus,
+  Trash2,
+  User,
+  UserPlus, X,
+} from 'lucide-react';
 import React from 'react';
 import { createPortal } from 'react-dom';
-import {
-  UserPlus, X, User, Mail, Phone, MapPin, Calendar,
-  Briefcase, FileText, Plus, ChevronRight, Trash2,
-} from 'lucide-react';
-import { clsx } from 'clsx';
 import { SearchableSelect } from '../../../components/ui/SearchableSelect';
 import type { CandidateDocument, CandidateFormState, FilterOption } from '../types';
 
@@ -40,7 +49,7 @@ const AddEditCandidateDialog: React.FC<Props> = ({
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[9999] flex justify-end">
+    <div className="fixed inset-0 z-9999 flex justify-end">
       {/* Backdrop */}
       <div
         className={clsx(

@@ -39,7 +39,7 @@ const CandidateDetailDialog: React.FC<Props> = ({
   const docs = candidate?.documents ?? [];
 
   return createPortal(
-    <div className="fixed inset-0 z-[9999] flex justify-end">
+    <div className="fixed inset-0 z-9999 flex justify-end">
       {/* Backdrop */}
       <div
         className={clsx(
