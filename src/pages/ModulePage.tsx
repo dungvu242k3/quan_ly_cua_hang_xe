@@ -1,42 +1,33 @@
 import React, { useState } from 'react';
-import { Search, ChevronLeft } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { clsx } from 'clsx';
 import { ModuleCard } from '../components/ui/ModuleCard';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { moduleData } from '../data/moduleData';
 import { sidebarMenu } from '../data/sidebarMenu';
+import { motion } from 'framer-motion';
 
 const ModulePage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'tat-ca' | 'danh-dau'>('tat-ca');
   const [searchQuery, setSearchQuery] = useState('');
   const location = useLocation();
-  const navigate = useNavigate();
-
-  const data = moduleData[location.pathname] || [];
   const currentItem = sidebarMenu.find(item => item.path === location.pathname);
+  const data = moduleData[location.pathname] || [];
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full">
-      {/* Mobile Header (Only visible on small screens when inside a module) */}
-      <div className="flex items-center gap-3 mb-4 sm:hidden">
-        <button onClick={() => navigate('/')} className="p-2 -ml-2 text-muted-foreground hover:bg-accent rounded-lg flex items-center justify-center bg-card border border-border shadow-sm">
-          <ChevronLeft size={20} />
-        </button>
-        <h1 className="text-lg font-bold text-foreground">
+    <motion.div 
+      layoutId={`mod-${currentItem?.label}`}
+      className="animate-in fade-in duration-500 w-full"
+    >
+      {/* Module Title (Desktop and Mobile) */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-foreground flex items-center gap-3">
           {currentItem?.label}
         </h1>
       </div>
 
       {/* Filter Bar */}
       <div className="bg-card rounded-xl shadow-sm border border-border p-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4 mb-6 relative z-10">
-        <button 
-          onClick={() => navigate('/')}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border hover:bg-muted text-muted-foreground text-[13px] font-medium transition-colors bg-card shadow-sm"
-        >
-          <ChevronLeft size={16} />
-          Quay lại
-        </button>
-
         <div className="flex bg-muted rounded-lg p-1 w-full sm:w-auto">
           <button
             onClick={() => setActiveTab('tat-ca')}
@@ -104,7 +95,7 @@ const ModulePage: React.FC = () => {
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                   {filteredItems.map((item, itemIdx) => (
-                    <ModuleCard key={itemIdx} {...item} />
+                    <ModuleCard key={itemIdx} {...item} layoutId={`func-${item.title}`} />
                   ))}
                 </div>
               </div>
@@ -122,7 +113,7 @@ const ModulePage: React.FC = () => {
           Module này đang được phát triển...
         </div>
       )}
-    </div>
+    </motion.div>
   );
 };
 

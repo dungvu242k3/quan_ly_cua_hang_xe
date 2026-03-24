@@ -1,17 +1,17 @@
-import React, { useState } from 'react';
-import { ActionCard } from '../components/ui/ActionCard';
-import type { ActionCardProps } from '../components/ui/ActionCard';
-import { FileText, Users, Box, Search } from 'lucide-react';
 import { clsx } from 'clsx';
-import { moduleData } from '../data/moduleData';
+import { Box, FileText, Search, Users } from 'lucide-react';
+import React, { useState } from 'react';
+import type { ActionCardProps } from '../components/ui/ActionCard';
+import { ActionCard } from '../components/ui/ActionCard';
 import { ModuleCard } from '../components/ui/ModuleCard';
+import { moduleData } from '../data/moduleData';
 
 const dashboardModules: ActionCardProps[] = [
   {
     icon: FileText,
     title: 'Bán hàng',
     description: 'Quản lý đơn hàng, khách hàng và doanh thu.',
-    href: '/hanh-chinh',
+    href: '/ban-hang',
     colorScheme: 'orange'
   },
   {
@@ -53,8 +53,8 @@ const Dashboard: React.FC = () => {
             onClick={() => setActiveTab('chuc-nang')}
             className={clsx(
               "px-4 py-1.5 rounded-md text-[13px] font-bold transition-all duration-200",
-              activeTab === 'chuc-nang' 
-                ? "bg-card text-primary shadow-sm ring-1 ring-black/5" 
+              activeTab === 'chuc-nang'
+                ? "bg-card text-primary shadow-sm ring-1 ring-black/5"
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
@@ -64,8 +64,8 @@ const Dashboard: React.FC = () => {
             onClick={() => setActiveTab('danh-dau')}
             className={clsx(
               "px-4 py-1.5 rounded-md text-[13px] font-bold transition-all duration-200",
-              activeTab === 'danh-dau' 
-                ? "bg-card text-primary shadow-sm ring-1 ring-black/5" 
+              activeTab === 'danh-dau'
+                ? "bg-card text-primary shadow-sm ring-1 ring-black/5"
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
@@ -75,8 +75,8 @@ const Dashboard: React.FC = () => {
             onClick={() => setActiveTab('tat-ca')}
             className={clsx(
               "px-4 py-1.5 rounded-md text-[13px] font-bold transition-all duration-200",
-              activeTab === 'tat-ca' 
-                ? "bg-card text-primary shadow-sm ring-1 ring-primary/10" 
+              activeTab === 'tat-ca'
+                ? "bg-card text-primary shadow-sm ring-1 ring-primary/10"
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
@@ -105,6 +105,7 @@ const Dashboard: React.FC = () => {
             <ActionCard
               key={idx}
               {...module}
+              layoutId={`mod-${module.title}`}
             />
           ))}
         </div>
@@ -120,8 +121,8 @@ const Dashboard: React.FC = () => {
         <div className="space-y-8 animate-in fade-in duration-500">
           <div className="space-y-8">
             {allSections.map((section, idx) => {
-              const filteredItems = section.items.filter(item => 
-                item.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+              const filteredItems = section.items.filter(item =>
+                item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 item.description.toLowerCase().includes(searchQuery.toLowerCase())
               );
 
@@ -136,10 +137,10 @@ const Dashboard: React.FC = () => {
                     </div>
                     <div className="h-px flex-1 bg-border/60"></div>
                   </h2>
-                  
+
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                     {filteredItems.map((item, itemIdx) => (
-                      <ModuleCard key={itemIdx} {...item} />
+                      <ModuleCard key={itemIdx} {...item} layoutId={`func-${item.title}`} />
                     ))}
                   </div>
                 </div>

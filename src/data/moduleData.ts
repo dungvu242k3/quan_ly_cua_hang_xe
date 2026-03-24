@@ -1,14 +1,16 @@
 import {
-  Calendar, ClipboardList, 
-  Wrench,
-  Users, ShoppingCart, 
-  Wallet, ArrowLeftRight
+  ArrowLeftRight,
+  Calendar, ClipboardList,
+  ShoppingCart,
+  Users,
+  Wallet,
+  Wrench
 } from 'lucide-react';
 import type { ModuleCardProps } from '../components/ui/ModuleCard';
 
 // Comprehensive mock data for module pages to match the Quản lý chuỗi cửa hàng sửa xe precisely
 export const moduleData: Record<string, { section: string; items: ModuleCardProps[] }[]> = {
-  '/hanh-chinh': [
+  '/ban-hang': [
     {
       section: 'Quản lý bán hàng',
       items: [
@@ -23,9 +25,9 @@ export const moduleData: Record<string, { section: string; items: ModuleCardProp
     {
       section: 'Quản lý nhân sự',
       items: [
-        { icon: Users, title: 'Nhân sự', description: 'Quản lý hồ sơ, thông tin nhân viên trong hệ thống.', colorScheme: 'emerald', path: '/nhan-su/ung-vien' },
+        { icon: Users, title: 'Nhân sự', description: 'Quản lý danh sách nhân viên, vị trí và cơ sở làm việc.', colorScheme: 'emerald', path: '/nhan-su/ung-vien' },
         { icon: Calendar, title: 'Chấm công', description: 'Thực hiện chấm công hàng ngày cho nhân viên.', colorScheme: 'blue' },
-        { icon: ClipboardList, title: 'Bảng chấm công', description: 'Xem và tổng hợp dữ liệu chấm công theo tháng.', colorScheme: 'orange' }
+        { icon: ClipboardList, title: 'Bảng chấm công', description: 'Xem và tổng hợp dữ liệu chấm công theo tháng.', colorScheme: 'orange', path: '/nhan-su/bang-cham-cong' }
       ]
     }
   ],
@@ -33,7 +35,7 @@ export const moduleData: Record<string, { section: string; items: ModuleCardProp
     {
       section: 'Quản lý kho',
       items: [
-        { icon: ArrowLeftRight, title: 'Xuất nhập kho', description: 'Quản lý các hoạt động nhập hàng vào kho và xuất hàng ra khỏi kho.', colorScheme: 'teal' }
+        { icon: ArrowLeftRight, title: 'Xuất nhập kho', description: 'Quản lý các hoạt động nhập hàng vào kho và xuất hàng ra khỏi kho.', colorScheme: 'teal', path: '/kho-van/xuat-nhap-kho' }
       ]
     }
   ],

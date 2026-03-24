@@ -4,7 +4,7 @@
 :root {
   --font-sans: 'Inter', 'Noto Sans', sans-serif;
   --primary: #3b82f6;
-  --background: #f8fafc;
+  --background: #ffffff;
   --foreground: #0f172a;
   --card: #ffffff;
   --border: #e2e8f0;
@@ -58,9 +58,11 @@
   .shadow-soft {
     box-shadow: 0 4px 6px -1px var(--color-border), 0 2px 4px -1px var(--color-border);
   }
+
   .shadow-ultra {
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.08);
   }
+
   .pb-safe {
     padding-bottom: env(safe-area-inset-bottom);
   }
@@ -87,18 +89,33 @@
 
 /* Animations */
 @keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes dialog-slide-in {
-  from { transform: translateX(100%); }
-  to { transform: translateX(0); }
+  from {
+    transform: translateX(100%);
+  }
+
+  to {
+    transform: translateX(0);
+  }
 }
 
 @keyframes dialog-slide-out {
-  from { transform: translateX(0); }
-  to { transform: translateX(100%); }
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(100%);
+  }
 }
 
 .dialog-slide-in {
@@ -110,13 +127,23 @@
 }
 
 @keyframes slide-in-from-bottom-4 {
-  from { transform: translateY(1rem); }
-  to { transform: translateY(0); }
+  from {
+    transform: translateY(1rem);
+  }
+
+  to {
+    transform: translateY(0);
+  }
 }
 
 @keyframes slide-in-from-bottom-2 {
-  from { transform: translateY(0.5rem); }
-  to { transform: translateY(0); }
+  from {
+    transform: translateY(0.5rem);
+  }
+
+  to {
+    transform: translateY(0);
+  }
 }
 
 .animate-in {

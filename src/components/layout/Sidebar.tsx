@@ -1,8 +1,8 @@
+import { clsx } from 'clsx';
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { sidebarMenu, extraMenuItems } from '../../data/sidebarMenu';
 import type { SidebarItem } from '../../data/sidebarMenu';
-import { clsx } from 'clsx';
+import { extraMenuItems, sidebarMenu } from '../../data/sidebarMenu';
 
 
 interface SidebarProps {
@@ -39,9 +39,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
             "bg-transparent flex items-center justify-center shrink-0 transition-all duration-300",
             isOpen ? "w-10 h-10" : "w-12 h-12"
           )}>
-            <img 
-              src="/logo.png" 
-              alt="Logo" 
+            <img
+              src="/logo.png"
+              alt="Logo"
               className="w-full h-full object-contain"
             />
           </div>

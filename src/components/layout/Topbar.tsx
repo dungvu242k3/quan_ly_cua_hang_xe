@@ -1,14 +1,26 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Bell, Clock, Calendar, CheckCheck, Trash2, ChevronRight, 
-  Info, AlertTriangle, CheckCircle2, Home, PanelLeft, 
-  PanelLeftClose, User, Settings, LogOut, ChevronDown 
-} from 'lucide-react';
-import { useLocation, Link, useNavigate } from 'react-router-dom';
-import { sidebarMenu, extraMenuItems } from '../../data/sidebarMenu';
-import { moduleData } from '../../data/moduleData';
 import { clsx } from 'clsx';
+import {
+  AlertTriangle,
+  Bell,
+  Calendar, CheckCheck,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Clock,
+  Home,
+  Info,
+  LogOut,
+  PanelLeft,
+  PanelLeftClose,
+  Settings,
+  Trash2,
+  User
+} from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
+import { moduleData } from '../../data/moduleData';
+import { extraMenuItems, sidebarMenu } from '../../data/sidebarMenu';
 
 interface Notification {
   id: string;
@@ -113,7 +125,7 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
 
   // Enhanced breadcrumb logic
   const pathSegments = location.pathname.split('/').filter(Boolean);
-  
+
   const getLabel = (path: string) => {
     // Check specific module items in moduleData first
     for (const mainPath in moduleData) {
@@ -122,16 +134,16 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
         if (found) return found.title;
       }
     }
-    
+
     // Check sidebar and extra menu items
     const menuItems = [...sidebarMenu, ...extraMenuItems, { path: '/ho-so', label: 'Hồ sơ cá nhân' }];
     const found = menuItems.find(item => item.path === path);
     if (found) return found.label;
-    
+
     // Fallback labels for segments
     const segmentLabels: Record<string, string> = {
       'nhan-su': 'Nhân sự',
-      'hanh-chinh': 'Bán hàng',
+      'ban-hang': 'Bán hàng',
       'kinh-doanh': 'Kinh doanh',
       'marketing': 'Marketing',
       'tai-chinh': 'Tài chính',
@@ -141,7 +153,7 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
       'he-thong': 'Hệ thống',
       'ung-vien': 'Ứng viên'
     };
-    
+
     const segment = path.split('/').pop() || '';
     return segmentLabels[segment] || segment;
   };
@@ -402,7 +414,7 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
 
         {/* User Profile */}
         <div className="relative" ref={userDropdownRef}>
-          <div 
+          <div
             onClick={() => {
               setShowUserDropdown(!showUserDropdown);
               setShowNotifications(false);
@@ -414,8 +426,8 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
           >
             <div className="relative">
               <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center overflow-hidden shadow-sm shadow-primary/5">
-                <img 
-                  src={userAvatar} 
+                <img
+                  src={userAvatar}
                   alt="Avatar"
                   className="w-full h-full object-cover"
                 />
@@ -435,7 +447,7 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
           {showUserDropdown && (
             <div className="absolute right-0 mt-3 w-56 bg-card rounded-xl shadow-2xl border border-border overflow-hidden animate-in fade-in zoom-in-95 duration-200 origin-top-right">
               <div className="p-1.5 space-y-0.5">
-                <button 
+                <button
                   onClick={() => {
                     navigate('/ho-so');
                     setShowUserDropdown(false);
@@ -447,8 +459,8 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
                   </div>
                   <span className="text-[13px] font-semibold">Hồ sơ cá nhân</span>
                 </button>
-                
-                <button 
+
+                <button
                   onClick={() => {
                     navigate('/cai-dat');
                     setShowUserDropdown(false);
@@ -463,7 +475,7 @@ const Topbar: React.FC<TopbarProps> = ({ sidebarOpen, setSidebarOpen }) => {
 
                 <div className="my-1 border-t border-border/50" />
 
-                <button 
+                <button
                   onClick={() => setShowUserDropdown(false)}
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-red-500 hover:bg-red-500/10 transition-all duration-200"
                 >

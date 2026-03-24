@@ -1,39 +1,61 @@
 import React, { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 import MobileBottomNav from './MobileBottomNav';
 import { clsx } from 'clsx';
+import { AnimatePresence, motion } from 'framer-motion';
 
 const MainLayout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const location = useLocation();
+  // Only hide sidebar and expand for "leaf" data pages (path depth > 1)
+  const isDataView = location.pathname.split('/').filter(Boolean).length > 1;
 
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
-      {/* Sidebar */}
-      <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
+      {/* Sidebar - Hidden on deep data views to give focused feel */}
+      {!isDataView && (
+        <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
+      )}
 
       {/* Main Content Area */}
       <div 
         className={clsx(
           "flex-1 flex flex-col w-full min-w-0 transition-all duration-300",
-          sidebarOpen ? "lg:ml-64" : "lg:ml-[72px]"
+          !isDataView ? (sidebarOpen ? "lg:ml-64" : "lg:ml-[72px]") : "lg:ml-0"
         )}
       >
         <Topbar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
         {/* Scrollable Content */}
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6 pb-20 lg:pb-6 custom-scrollbar">
-          <div className="w-full h-full flex flex-col">
-            <Outlet />
-          </div>
+        <main className={clsx(
+          "flex-1 overflow-y-auto custom-scrollbar relative",
+          isDataView ? "p-0" : "p-4 lg:p-6 pb-20 lg:pb-6"
+        )}>
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={location.pathname}
+              initial={{ opacity: 0, scale: 0.98, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 1.02, y: -10 }}
+              transition={{ 
+                duration: 0.35, 
+                ease: [0.32, 0.72, 0, 1] 
+              }}
+              className="w-full h-full flex flex-col"
+            >
+              <Outlet />
+            </motion.div>
+          </AnimatePresence>
         </main>
 
-        {/* Mobile Bottom Navigation */}
-        <MobileBottomNav />
+        {/* Mobile Bottom Navigation - Hidden on deep data views */}
+        {!isDataView && <MobileBottomNav />}
       </div>
     </div>
   );
 };
 
 export default MainLayout;
+

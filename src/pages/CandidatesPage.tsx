@@ -1,13 +1,15 @@
 import {
   Users, Search, Plus, Filter,
   Mail, Phone, Calendar,
-  ChevronRight, Download, Edit2, Eye, Trash2
+  ChevronRight, ChevronLeft, Download, Edit2, Eye, Trash2
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { candidatesData, statusConfig, positionOptions, mockInterviewSessions } from './candidates/data';
 import AddEditCandidateDialog from './candidates/dialogs/AddEditCandidateDialog';
 import CandidateDetailDialog from './candidates/dialogs/CandidateDetailDialog';
+import { motion } from 'framer-motion';
 
 const CandidatesPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -21,8 +23,24 @@ const CandidatesPage: React.FC = () => {
     c.position.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const navigate = useNavigate();
+
   return (
-    <div className="flex flex-col h-full animate-in fade-in duration-500">
+    <motion.div 
+      layoutId="func-Ứng viên"
+      className="flex flex-col h-full animate-in fade-in duration-500 p-4 lg:p-6"
+    >
+      {/* Back Button for Full Screen Mode */}
+      <div className="mb-6 flex">
+        <button 
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border hover:bg-muted text-muted-foreground text-[13px] font-medium transition-colors bg-card shadow-sm"
+        >
+          <ChevronLeft size={16} />
+          Quay lại
+        </button>
+      </div>
+
       {/* Header section */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
@@ -237,7 +255,7 @@ const CandidatesPage: React.FC = () => {
           sessions={mockInterviewSessions}
         />
       )}
-    </div>
+    </motion.div>
   );
 };
 

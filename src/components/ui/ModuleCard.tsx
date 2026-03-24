@@ -2,6 +2,7 @@ import React from 'react';
 import { clsx } from 'clsx';
 import { HelpCircle, Star } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 
 export interface ModuleCardProps {
   icon: React.ElementType;
@@ -9,6 +10,7 @@ export interface ModuleCardProps {
   description: string;
   colorScheme: 'red' | 'green' | 'pink' | 'blue' | 'orange' | 'teal' | 'purple' | 'cyan' | 'emerald' | 'amber' | 'slate';
   path?: string;
+  layoutId?: string;
 }
 
 const colorMap = {
@@ -30,7 +32,8 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
   title,
   description,
   colorScheme,
-  path
+  path,
+  layoutId
 }) => {
   const navigate = useNavigate();
 
@@ -41,7 +44,8 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
   };
 
   return (
-    <div 
+    <motion.div 
+      layoutId={layoutId}
       onClick={handleClick}
       className={clsx(
         "group flex items-center bg-card rounded-xl p-4 transition-all duration-300 border border-border hover:border-primary/30 hover:shadow-sm cursor-pointer hover:-translate-y-0.5",
@@ -51,7 +55,7 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
       <div 
         className={clsx(
           "w-11 h-11 rounded-xl flex items-center justify-center shrink-0 mr-3 transition-transform group-hover:scale-110",
-          colorMap[colorScheme]
+          colorMap[colorScheme as keyof typeof colorMap]
         )}
       >
         <Icon size={22} />
@@ -74,6 +78,7 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
           <HelpCircle size={15} />
         </button>
       </div>
-    </div>
+    </motion.div>
   );
 };
+

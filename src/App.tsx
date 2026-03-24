@@ -1,8 +1,10 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import MainLayout from './components/layout/MainLayout';
-import CandidatesPage from './pages/CandidatesPage';
+import AttendanceManagementPage from './pages/AttendanceManagementPage';
+import PersonnelManagementPage from './pages/PersonnelManagementPage';
 import CustomerManagementPage from './pages/CustomerManagementPage';
 import Dashboard from './pages/Dashboard';
+import InventoryManagementPage from './pages/InventoryManagementPage';
 import ModulePage from './pages/ModulePage';
 
 function App() {
@@ -11,11 +13,13 @@ function App() {
       <Routes>
         <Route element={<MainLayout />}>
           <Route path="/" element={<Dashboard />} />
-          <Route path="/hanh-chinh" element={<ModulePage />} />
+          <Route path="/ban-hang" element={<ModulePage />} />
           <Route path="/ban-hang/khach-hang" element={<CustomerManagementPage />} />
           <Route path="/nhan-su" element={<ModulePage />} />
-          <Route path="/nhan-su/ung-vien" element={<CandidatesPage />} />
+          <Route path="/nhan-su/ung-vien" element={<PersonnelManagementPage />} />
+          <Route path="/nhan-su/bang-cham-cong" element={<AttendanceManagementPage />} />
           <Route path="/kho-van" element={<ModulePage />} />
+          <Route path="/kho-van/xuat-nhap-kho" element={<InventoryManagementPage />} />
 
           {/* Fallback route */}
           <Route path="*" element={<Navigate to="/" replace />} />
