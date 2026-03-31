@@ -16,7 +16,6 @@ const ModulePage: React.FC = () => {
 
   return (
     <motion.div 
-      layoutId={`mod-${currentItem?.label}`}
       className="animate-in fade-in duration-500 w-full"
     >
       {/* Module Title (Desktop and Mobile) */}

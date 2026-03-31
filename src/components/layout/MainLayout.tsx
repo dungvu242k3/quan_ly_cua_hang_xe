@@ -36,12 +36,12 @@ const MainLayout: React.FC = () => {
           "flex-1 overflow-y-auto custom-scrollbar relative",
           isDataView ? "p-0" : "p-4 lg:p-6 pb-20 lg:pb-6"
         )}>
-          <AnimatePresence mode="wait" initial={false}>
+          <AnimatePresence mode="popLayout" initial={false}>
             <motion.div
               key={location.pathname}
               initial={{ opacity: 0, scale: 0.98, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 1.02, y: -10 }}
+              exit={{ opacity: 0, y: -5 }}
               transition={{ 
                 duration: 0.35, 
                 ease: [0.32, 0.72, 0, 1] 

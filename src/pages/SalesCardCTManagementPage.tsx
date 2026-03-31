@@ -14,8 +14,8 @@ import {
   Upload,
   X
 } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { getCustomers } from '../data/customerData';
 import type { SalesCardCT } from '../data/salesCardCTData';
@@ -33,6 +33,7 @@ const SalesCardCTManagementPage: React.FC = () => {
   const [services, setServices] = useState<DichVu[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const location = useLocation();
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -45,7 +46,7 @@ const SalesCardCTManagementPage: React.FC = () => {
 
   const branchOptions = ["Cơ sở Bắc Giang", "Cơ sở Bắc Ninh"];
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       const [ctsResult, cards, servs] = await Promise.all([
@@ -62,11 +63,11 @@ const SalesCardCTManagementPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, pageSize, searchQuery, location.pathname]);
 
   useEffect(() => {
     loadData();
-  }, [currentPage, pageSize]);
+  }, [loadData]);
 
   useEffect(() => {
     const timer = setTimeout(() => {

@@ -1,5 +1,5 @@
-import * as React from "react"
 import { Check, ChevronDown, Search, X } from "lucide-react"
+import * as React from "react"
 
 import { cn } from "../../lib/utils"
 import {
@@ -92,12 +92,12 @@ export function MultiSearchableSelect({
           />
         </div>
       </PopoverTrigger>
-      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0 shadow-xl border-border/60" style={{ zIndex: 1100 }}>
+      <PopoverContent className="w-(--radix-popover-trigger-width) p-0 shadow-xl border-border/60" style={{ zIndex: 1100 }}>
         <Command className="rounded-xl overflow-hidden">
           <div className="flex items-center border-b border-border/40 px-3 bg-muted/5">
             <Search className="mr-2 h-4 w-4 shrink-0 opacity-40" />
-            <CommandInput 
-              placeholder={searchPlaceholder} 
+            <CommandInput
+              placeholder={searchPlaceholder}
               className="h-10 border-none px-0 text-[13px] focus:ring-0"
             />
           </div>
