@@ -65,6 +65,8 @@ export const deleteAttendanceRecord = async (id: string): Promise<void> => {
 export interface AttendanceFilters {
   nhan_su?: string;
   ngay?: string;
+  startDate?: string;
+  endDate?: string;
 }
 
 export const getAttendancePaginated = async (
@@ -91,6 +93,14 @@ export const getAttendancePaginated = async (
 
   if (filters?.ngay) {
     query = query.eq('ngay', filters.ngay);
+  }
+
+  if (filters?.startDate) {
+    query = query.gte('ngay', filters.startDate);
+  }
+
+  if (filters?.endDate) {
+    query = query.lte('ngay', filters.endDate);
   }
 
   const { data, count, error } = await query

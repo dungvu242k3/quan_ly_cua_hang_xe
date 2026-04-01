@@ -11,7 +11,8 @@ export interface PersonnelDailyStats {
 export const getPersonnelDailyStats = async (
   personnelId: string,
   personnelName: string,
-  dateStr: string
+  startDateStr: string,
+  endDateStr: string
 ): Promise<PersonnelDailyStats> => {
   try {
     // 1. Fetch Sales Cards (the_ban_hang) where the personnel is responsible on the specific date
@@ -19,7 +20,8 @@ export const getPersonnelDailyStats = async (
       .from('the_ban_hang')
       .select('*, nhan_su(ho_ten), the_ban_hang_ct(*), khach_hang(ho_va_ten), dich_vu(ten_dich_vu, gia_ban)')
       .eq('nhan_vien_id', personnelId)
-      .eq('ngay', dateStr);
+      .gte('ngay', startDateStr)
+      .lte('ngay', endDateStr);
 
     if (salesError) throw salesError;
 
@@ -41,24 +43,22 @@ export const getPersonnelDailyStats = async (
     });
 
     // 2. Fetch Attendance (cham_cong) for the personnel on the specific date
-    // Some implementations store personnelName in the 'nhan_su' column, others store ID. 
-    // We check both just to be safe.
     const { data: attendanceData, error: attError } = await supabase
       .from('cham_cong')
       .select('*')
-      .eq('ngay', dateStr)
-      .or(`nhan_su.eq.${personnelId},nhan_su.eq.${personnelName}`);
+      .gte('ngay', startDateStr)
+      .lte('ngay', endDateStr)
+      .or(`nhan_su.eq.${personnelId},nhan_su.eq.${personnelName}`)
+      .order('ngay', { ascending: false });
 
     if (attError) throw attError;
 
-    const attendanceRecord = attendanceData && attendanceData.length > 0 ? attendanceData[0] : null;
-
     return {
-      date: dateStr,
+      date: `${startDateStr} - ${endDateStr}`,
       totalOrders,
       totalSales: totalSalesValue,
       salesCards: validSales,
-      attendance: attendanceRecord
+      attendance: attendanceData || []
     };
 
   } catch (error) {

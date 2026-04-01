@@ -11,6 +11,7 @@ import * as XLSX from 'xlsx';
 import { getCustomersPaginated, deleteCustomer, bulkUpsertCustomers, bulkDeleteCustomers } from '../data/customerData';
 import type { KhachHang } from '../data/customerData';
 import CustomerFormModal from '../components/CustomerFormModal';
+import CustomerDetailsModal from '../components/CustomerDetailsModal';
 import Pagination from '../components/Pagination';
 import { clsx } from 'clsx';
 
@@ -34,6 +35,9 @@ const CustomerManagementPage: React.FC = () => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<KhachHang | null>(null);
+  
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<KhachHang | null>(null);
 
   const [visibleColumns, setVisibleColumns] = useState<string[]>([
     'anh', 'ma_khach_hang', 'ho_va_ten', 'so_dien_thoai', 'dia_chi_hien_tai', 'bien_so_xe',
@@ -135,6 +139,16 @@ const CustomerManagementPage: React.FC = () => {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setEditingCustomer(null);
+  };
+
+  const handleOpenDetails = (customer: KhachHang) => {
+    setSelectedCustomer(customer);
+    setIsDetailsOpen(true);
+  };
+
+  const handleCloseDetails = () => {
+    setIsDetailsOpen(false);
+    setSelectedCustomer(null);
   };
 
 
@@ -510,7 +524,16 @@ const CustomerManagementPage: React.FC = () => {
                           </div>
                         </td>
                       )}
-                      {visibleColumns.includes('ho_va_ten') && <td className="px-4 py-4 font-semibold text-foreground whitespace-nowrap">{customer.ho_va_ten}</td>}
+                      {visibleColumns.includes('ho_va_ten') && (
+                        <td className="px-4 py-4 font-semibold text-foreground whitespace-nowrap">
+                          <button
+                            onClick={() => handleOpenDetails(customer)}
+                            className="text-primary hover:underline hover:text-primary/80 transition-all text-left"
+                          >
+                            {customer.ho_va_ten}
+                          </button>
+                        </td>
+                      )}
                       {visibleColumns.includes('so_dien_thoai') && <td className="px-4 py-4 text-muted-foreground whitespace-nowrap">{customer.so_dien_thoai}</td>}
                       {visibleColumns.includes('dia_chi_hien_tai') && (
                         <td className="px-4 py-4 text-muted-foreground text-[12px] truncate max-w-[200px]" title={customer.dia_chi_hien_tai}>
@@ -603,6 +626,13 @@ const CustomerManagementPage: React.FC = () => {
         onClose={handleCloseModal} 
         onSuccess={loadCustomers} 
         customer={editingCustomer} 
+      />
+
+      {/* Modal - Customer Details & History */}
+      <CustomerDetailsModal
+        isOpen={isDetailsOpen}
+        onClose={handleCloseDetails}
+        customer={selectedCustomer}
       />
     </div>
   );

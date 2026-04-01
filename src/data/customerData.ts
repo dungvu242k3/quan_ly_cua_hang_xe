@@ -1,5 +1,12 @@
 import { supabase } from '../lib/supabase';
 
+export interface OilChangeEntry {
+  ngay: string;
+  so_km: number;
+  chu_ky: number;
+  ghi_chu?: string;
+}
+
 export interface KhachHang {
   id: string; // Mã định danh
   ho_va_ten: string; // Họ và tên
@@ -8,10 +15,11 @@ export interface KhachHang {
   dia_chi_hien_tai: string; // Địa chỉ lưu trú hiện tại
   bien_so_xe: string; // Biển số Xe
   ngay_dang_ky: string; // Ngày đăng ký
-  so_km: number; // Số Km
-  so_ngay_thay_dau: number; // Số ngày thay dầu (chu kỳ)
-  ngay_thay_dau: string; // Ngày thay dầu
+  so_km: number; // Số Km (Legacy field or Current KM)
+  so_ngay_thay_dau: number; // Số ngày thay dầu (chu kỳ - Legacy field)
+  ngay_thay_dau: string; // Ngày thay dầu (Legacy field)
   ma_khach_hang?: string; // Mã khách hàng (Legacy/Short ID)
+  lich_su_thay_dau?: OilChangeEntry[]; // Bảng lịch sử thay dầu
 }
 
 export const getCustomers = async (): Promise<KhachHang[]> => {
@@ -141,4 +149,37 @@ export const uploadCustomerImage = async (file: File): Promise<string> => {
     .getPublicUrl(filePath);
 
   return data.publicUrl;
+};
+
+export const getCustomerServiceHistory = async (
+  customerId: string,
+  startDate?: string,
+  endDate?: string
+): Promise<any[]> => {
+  let query = supabase
+    .from('the_ban_hang')
+    .select(`
+      *,
+      nhan_su:nhan_vien_id(ho_ten),
+      dich_vu:dich_vu_id(ten_dich_vu, gia_ban),
+      the_ban_hang_ct(san_pham, gia_ban, so_luong)
+    `)
+    .eq('khach_hang_id', customerId);
+
+  if (startDate) {
+    query = query.gte('ngay', startDate);
+  }
+  if (endDate) {
+    query = query.lte('ngay', endDate);
+  }
+
+  const { data, error } = await query
+    .order('ngay', { ascending: false })
+    .order('gio', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching customer service history:', error);
+    throw error;
+  }
+  return data || [];
 };

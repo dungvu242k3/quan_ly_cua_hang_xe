@@ -42,7 +42,8 @@ const AttendanceManagementPage: React.FC = () => {
 
   // Filter states
   const [selectedStaff, setSelectedStaff] = useState<string>('');
-  const [selectedDate, setSelectedDate] = useState<string>('');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
 
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -80,7 +81,8 @@ const AttendanceManagementPage: React.FC = () => {
       const [attendanceResult, personnelData] = await Promise.all([
         getAttendancePaginated(currentPage, pageSize, debouncedSearch, {
           nhan_su: selectedStaff,
-          ngay: selectedDate
+          startDate,
+          endDate
         }),
         getPersonnel()
       ]);
@@ -92,7 +94,7 @@ const AttendanceManagementPage: React.FC = () => {
     } finally {
       if (showLoading) setLoading(false);
     }
-  }, [currentPage, pageSize, debouncedSearch, selectedStaff, selectedDate]);
+  }, [currentPage, pageSize, debouncedSearch, selectedStaff, startDate, endDate]);
 
   useEffect(() => {
     loadRecords(true);
@@ -437,20 +439,33 @@ const AttendanceManagementPage: React.FC = () => {
 
             <input
               type="date"
-              value={selectedDate}
+              title="Từ ngày"
+              value={startDate}
               onChange={(e) => {
-                setSelectedDate(e.target.value);
+                setStartDate(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="px-3 py-1.5 border border-border rounded text-[13px] bg-card outline-none focus:ring-1 focus:ring-primary"
+            />
+            <span className="text-muted-foreground text-[12px]">-</span>
+            <input
+              type="date"
+              title="Đến ngày"
+              value={endDate}
+              onChange={(e) => {
+                setEndDate(e.target.value);
                 setCurrentPage(1);
               }}
               className="px-3 py-1.5 border border-border rounded text-[13px] bg-card outline-none focus:ring-1 focus:ring-primary"
             />
 
-            {(searchQuery !== '' || selectedStaff !== '' || selectedDate !== '') && (
+            {(searchQuery !== '' || selectedStaff !== '' || startDate !== '' || endDate !== '') && (
               <button
                 onClick={() => {
                   setSearchQuery('');
                   setSelectedStaff('');
-                  setSelectedDate('');
+                  setStartDate('');
+                  setEndDate('');
                   setCurrentPage(1);
                 }}
                 className="text-[12px] text-destructive hover:underline font-medium ml-2"

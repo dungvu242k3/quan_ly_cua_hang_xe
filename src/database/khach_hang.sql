@@ -10,8 +10,9 @@ CREATE TABLE IF NOT EXISTS public.khach_hang (
     so_km INTEGER DEFAULT 0,
     so_ngay_thay_dau INTEGER DEFAULT 0,
     ngay_thay_dau DATE,
+    lich_su_thay_dau JSONB DEFAULT '[]'::jsonb,
     created_at TIMESTAMPTZ DEFAULT now()
-);
+ );
 
 -- Add indexes for common search fields
 CREATE INDEX IF NOT EXISTS idx_khach_hang_ho_va_ten ON public.khach_hang (ho_va_ten);
