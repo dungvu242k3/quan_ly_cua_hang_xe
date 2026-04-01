@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { 
-  Plus, Search, Trash2, Edit2, Loader2, MapPin, Wallet, Filter, ChevronLeft
+  Plus, Search, Trash2, Edit2, Loader2, MapPin, Wallet, ArrowLeft, Briefcase
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getAllowancePolicies, deleteAllowancePolicy } from '../data/allowancePolicyData';
@@ -14,6 +14,8 @@ const AllowancePolicyPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCoSo, setSelectedCoSo] = useState('Tất cả cơ sở');
+  const [selectedViTri, setSelectedViTri] = useState('Tất cả vị trí');
+  const [selectedComponentId, setSelectedComponentId] = useState('Tất cả khoản');
 
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -76,12 +78,26 @@ const AllowancePolicyPage: React.FC = () => {
 
   const formatCurrency = (val: number) => new Intl.NumberFormat('vi-VN').format(val);
 
+  const uniquePositions = Array.from(new Set(policies.map(p => p.vi_tri))).filter(Boolean).sort();
+  const uniqueComponents = Array.from(
+    new Map(
+      policies
+        .filter(p => (p as any).thanh_phan_luong)
+        .map(p => [(p as any).thanh_phan_luong.id, (p as any).thanh_phan_luong.ten])
+    ).entries()
+  );
+
   const filteredPolicies = policies.filter(p => {
-    const searchMatch = removeVietnameseTones(p.ten_chinh_sach).includes(removeVietnameseTones(searchQuery)) ||
-                       removeVietnameseTones(p.co_so).includes(removeVietnameseTones(searchQuery));
+    const query = removeVietnameseTones(searchQuery.toLowerCase());
+    const searchMatch = !searchQuery || 
+                       removeVietnameseTones(p.ten_chinh_sach.toLowerCase()).includes(query) ||
+                       removeVietnameseTones(p.co_so.toLowerCase()).includes(query);
     const coSoMatch = selectedCoSo === 'Tất cả cơ sở' || p.co_so === selectedCoSo;
-    return searchMatch && coSoMatch;
+    const viTriMatch = selectedViTri === 'Tất cả vị trí' || p.vi_tri === selectedViTri;
+    const componentMatch = selectedComponentId === 'Tất cả khoản' || p.thanh_phan_luong_id === selectedComponentId;
+    return searchMatch && coSoMatch && viTriMatch && componentMatch;
   });
+
 
   if (loading && policies.length === 0) {
     return (
@@ -96,9 +112,6 @@ const AllowancePolicyPage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <button onClick={() => navigate(-1)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
-            <ChevronLeft size={24} className="text-slate-600" />
-          </button>
           <div>
             <h1 className="text-2xl font-black text-slate-900 tracking-tight">Chính sách phụ cấp</h1>
             <p className="text-sm text-slate-500 font-medium">Quản lý các khoản phụ cấp định mức theo vị trí công việc</p>
@@ -118,6 +131,9 @@ const AllowancePolicyPage: React.FC = () => {
 
       {/* Toolbar */}
       <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-col xl:flex-row gap-4 items-center">
+        <button onClick={() => navigate(-1)} className="flex items-center gap-1.5 px-5 py-2.5 border border-slate-200 rounded-2xl text-[13px] font-black text-slate-600 hover:bg-slate-100 transition-all shadow-sm active:scale-95 whitespace-nowrap">
+          <ArrowLeft size={18} /> Quay lại
+        </button>
         <div className="relative flex-1 group w-full">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors" size={18} />
           <input 
@@ -129,8 +145,34 @@ const AllowancePolicyPage: React.FC = () => {
           />
         </div>
         
-        <div className="flex items-center gap-3 w-full xl:w-auto">
-          <div className="relative group min-w-[220px]">
+        <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
+          {/* Position Filter */}
+          <div className="relative group min-w-[160px]">
+             <Briefcase size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary" strokeWidth={3} />
+             <select 
+               value={selectedViTri}
+               onChange={(e) => setSelectedViTri(e.target.value)}
+               className="w-full pl-10 pr-10 py-3 bg-white border border-slate-200 rounded-2xl font-black text-xs outline-none focus:ring-2 focus:ring-primary/20 appearance-none transition-all shadow-sm"
+             >
+               <option>Tất cả vị trí</option>
+               {uniquePositions.map(pos => <option key={pos} value={pos}>{pos}</option>)}
+             </select>
+          </div>
+
+          {/* Component Filter */}
+          <div className="relative group min-w-[180px]">
+             <Wallet size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary" strokeWidth={3} />
+             <select 
+               value={selectedComponentId}
+               onChange={(e) => setSelectedComponentId(e.target.value)}
+               className="w-full pl-10 pr-10 py-3 bg-white border border-slate-200 rounded-2xl font-black text-xs outline-none focus:ring-2 focus:ring-primary/20 appearance-none transition-all shadow-sm"
+             >
+               <option value="Tất cả khoản">Tất cả khoản phụ cấp</option>
+               {uniqueComponents.map(([id, ten]) => <option key={id} value={id}>{ten}</option>)}
+             </select>
+          </div>
+
+          <div className="relative group min-w-[180px]">
              <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary" size={16} />
              <select 
                value={selectedCoSo}
@@ -142,9 +184,6 @@ const AllowancePolicyPage: React.FC = () => {
                <option>Cơ sở Bắc Giang</option>
              </select>
           </div>
-          <button className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-600 hover:bg-slate-50 transition-all shadow-sm">
-            <Filter size={20} />
-          </button>
         </div>
       </div>
 

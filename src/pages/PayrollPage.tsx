@@ -4,6 +4,7 @@ import {
   ChevronDown, Filter, Calendar, Building2, CheckCircle2, AlertCircle, Loader2,
   Plus, ArrowLeft, MoreHorizontal, MessageSquare, User, Check
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { getPayrollBatch, updatePayrollStatus, bulkCreatePayrollItems } from '../data/payrollData';
 import type { BangLuong } from '../data/payrollData';
 import { getAllowancePolicies } from '../data/allowancePolicyData';
@@ -16,6 +17,7 @@ import * as XLSX from 'xlsx';
 
 
 const PayrollPage: React.FC = () => {
+  const navigate = useNavigate();
   const [payrollData, setPayrollData] = useState<BangLuong[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -306,9 +308,6 @@ const PayrollPage: React.FC = () => {
       {/* SaaS Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-2">
         <div className="flex items-center gap-4">
-          <button className="p-2 hover:bg-slate-100 rounded-full transition-colors">
-            <ArrowLeft size={20} className="text-slate-600" />
-          </button>
           <div className="space-y-0.5">
             <div className="flex items-center gap-3 relative group/header">
               <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2 group/title cursor-pointer relative">
@@ -422,6 +421,9 @@ const PayrollPage: React.FC = () => {
 
       {/* Modern Filter Bar */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col xl:flex-row gap-4 items-center">
+        <button onClick={() => navigate(-1)} className="flex items-center gap-1.5 px-5 py-2.5 border border-slate-200 rounded-xl text-[13px] font-black text-slate-600 hover:bg-slate-100 transition-all shadow-sm active:scale-95 whitespace-nowrap">
+          <ArrowLeft size={18} /> Quay lại
+        </button>
         <div className="relative flex-1 group w-full">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors" size={18} />
           <input 
