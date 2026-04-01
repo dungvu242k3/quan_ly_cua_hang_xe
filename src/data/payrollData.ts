@@ -26,8 +26,10 @@ export interface BangLuong {
   trang_thai: string;
   ghi_chu: string | null;
   nhan_su?: {
+    id: string;
     ho_ten: string;
     vi_tri: string;
+    hinh_anh: string | null;
   };
   created_at?: string;
   updated_at?: string;
@@ -46,7 +48,7 @@ export interface BangLuongChiTiet {
 export const getPayrollBatch = async (thang: number, nam: number, coSo?: string): Promise<BangLuong[]> => {
   let query = supabase
     .from('bang_luong')
-    .select('*, nhan_su:nhan_su_id(ho_ten, vi_tri)');
+    .select('*, nhan_su:nhan_su_id(id, ho_ten, vi_tri, hinh_anh)');
     
   query = query.eq('thang', thang).eq('nam', nam);
   
@@ -104,6 +106,17 @@ export const updatePayrollStatus = async (ids: string[], status: string): Promis
 
   if (error) {
     console.error('Error updating payroll status:', error);
+    throw error;
+  }
+};
+
+export const bulkCreatePayrollItems = async (items: Partial<BangLuong>[]): Promise<void> => {
+  const { error } = await supabase
+    .from('bang_luong')
+    .insert(items);
+
+  if (error) {
+    console.error('Error bulk creating payroll items:', error);
     throw error;
   }
 };
