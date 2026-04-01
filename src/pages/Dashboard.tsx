@@ -6,6 +6,7 @@ import type { ActionCardProps } from '../components/ui/ActionCard';
 import { ActionCard } from '../components/ui/ActionCard';
 import { ModuleCard } from '../components/ui/ModuleCard';
 import { moduleData } from '../data/moduleData';
+import { removeVietnameseTones } from '../lib/utils';
 
 const dashboardModules: ActionCardProps[] = [
   {
@@ -147,9 +148,10 @@ const Dashboard: React.FC = () => {
         <div className="space-y-8 animate-in fade-in duration-500">
           <div className="space-y-8">
             {allSections.map((section, idx) => {
+              const query = removeVietnameseTones(searchQuery);
               const filteredItems = section.items.filter(item =>
-                item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                item.description.toLowerCase().includes(searchQuery.toLowerCase())
+                removeVietnameseTones(item.title).includes(query) ||
+                removeVietnameseTones(item.description).includes(query)
               );
 
               if (filteredItems.length === 0) return null;
