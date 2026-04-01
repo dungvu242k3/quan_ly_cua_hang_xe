@@ -95,3 +95,43 @@ export const deleteAllServices = async (): Promise<void> => {
     throw error;
   }
 };
+
+export interface ServiceFilters {
+  branches?: string[];
+}
+
+export const getServicesPaginated = async (
+  page: number,
+  pageSize: number,
+  searchQuery?: string,
+  filters?: ServiceFilters
+): Promise<{ data: DichVu[], totalCount: number }> => {
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  let query = supabase
+    .from('dich_vu')
+    .select('*', { count: 'exact' });
+
+  if (searchQuery) {
+    query = query.or(`ten_dich_vu.ilike.%${searchQuery}%,id.ilike.%${searchQuery}%`);
+  }
+
+  if (filters?.branches?.length) {
+    query = query.in('co_so', filters.branches);
+  }
+
+  const { data, count, error } = await query
+    .order('created_at', { ascending: false })
+    .range(from, to);
+
+  if (error) {
+    console.error('Error fetching paginated services:', error);
+    throw error;
+  }
+
+  return {
+    data: (data as DichVu[]) || [],
+    totalCount: count || 0
+  };
+};

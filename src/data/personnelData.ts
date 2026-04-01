@@ -93,3 +93,48 @@ export const uploadPersonnelImage = async (file: File): Promise<string> => {
 
   return data.publicUrl;
 };
+
+export interface PersonnelFilters {
+  branches?: string[];
+  positions?: string[];
+}
+
+export const getPersonnelPaginated = async (
+  page: number,
+  pageSize: number,
+  searchQuery?: string,
+  filters?: PersonnelFilters
+): Promise<{ data: NhanSu[], totalCount: number }> => {
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  let query = supabase
+    .from('nhan_su')
+    .select('*', { count: 'exact' });
+
+  if (searchQuery) {
+    query = query.or(`ho_ten.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%,sdt.ilike.%${searchQuery}%`);
+  }
+
+  if (filters?.branches?.length) {
+    query = query.in('co_so', filters.branches);
+  }
+  
+  if (filters?.positions?.length) {
+    query = query.in('vi_tri', filters.positions);
+  }
+
+  const { data, count, error } = await query
+    .order('created_at', { ascending: false })
+    .range(from, to);
+
+  if (error) {
+    console.error('Error fetching paginated personnel:', error);
+    throw error;
+  }
+
+  return {
+    data: (data as NhanSu[]) || [],
+    totalCount: count || 0
+  };
+};

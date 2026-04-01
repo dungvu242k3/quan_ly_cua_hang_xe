@@ -22,13 +22,27 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import type { AttendanceRecord } from '../data/attendanceData';
-import { bulkUpsertAttendanceRecords, deleteAttendanceRecord, getAttendanceRecords, upsertAttendanceRecord } from '../data/attendanceData';
+import { bulkUpsertAttendanceRecords, deleteAttendanceRecord, getAttendanceRecords, upsertAttendanceRecord, getAttendancePaginated, type AttendanceFilters } from '../data/attendanceData';
+import { getPersonnel, type NhanSu } from '../data/personnelData';
+import { createPortal } from 'react-dom';
+import Pagination from '../components/Pagination';
 
 const AttendanceManagementPage: React.FC = () => {
   const navigate = useNavigate();
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
+  const [personnel, setPersonnel] = useState<NhanSu[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [totalCount, setTotalCount] = useState(0);
+
+  // Filter states
+  const [selectedStaff, setSelectedStaff] = useState<string>('');
+  const [selectedDate, setSelectedDate] = useState<string>('');
 
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -54,21 +68,37 @@ const AttendanceManagementPage: React.FC = () => {
     { id: 'actions', label: 'Thao tác' }
   ];
 
-  const loadRecords = async () => {
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const loadRecords = React.useCallback(async () => {
     try {
       setLoading(true);
-      const data = await getAttendanceRecords();
-      setRecords(data);
+      const [attendanceResult, personnelData] = await Promise.all([
+        getAttendancePaginated(currentPage, pageSize, debouncedSearch, {
+          nhan_su: selectedStaff,
+          ngay: selectedDate
+        }),
+        getPersonnel()
+      ]);
+      setRecords(attendanceResult.data);
+      setTotalCount(attendanceResult.totalCount);
+      setPersonnel(personnelData);
     } catch (error) {
       console.error(error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, pageSize, debouncedSearch, selectedStaff, selectedDate]);
 
   useEffect(() => {
     loadRecords();
-  }, []);
+  }, [loadRecords]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -83,15 +113,6 @@ const AttendanceManagementPage: React.FC = () => {
   const toggleDropdown = (id: string) => {
     setOpenDropdown(prev => prev === id ? null : id);
   };
-
-  const filteredRecords = useMemo(() => {
-    return records.filter(r => {
-      const matchSearch =
-        (r.nhan_su?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
-        (r.vi_tri?.toLowerCase() || '').includes(searchQuery.toLowerCase());
-      return matchSearch;
-    });
-  }, [records, searchQuery]);
 
   const formatDateForDisplay = (dateStr: string | undefined) => {
     if (!dateStr) return '—';
@@ -118,6 +139,8 @@ const AttendanceManagementPage: React.FC = () => {
         vi_tri: '',
         anh: ''
       });
+      // Tự động lấy tọa độ khi mở modal thêm mới
+      setTimeout(() => getLocation(), 100);
     }
     setIsModalOpen(true);
   };
@@ -371,12 +394,53 @@ const AttendanceManagementPage: React.FC = () => {
               </div>
               <input
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
                 className="w-full pl-9 pr-4 py-1.5 border border-border rounded text-[13px] focus:ring-1 focus:ring-primary focus:border-primary placeholder-slate-400 outline-none"
-                placeholder="Tìm tên nhân sự, vị trí..."
+                placeholder="Tìm nhân viên, vị trí..."
                 type="text"
               />
             </div>
+
+            <select 
+              value={selectedStaff} 
+              onChange={(e) => {
+                setSelectedStaff(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="px-3 py-1.5 border border-border rounded text-[13px] bg-card outline-none focus:ring-1 focus:ring-primary min-w-[150px]"
+            >
+              <option value="">Tất cả nhân sự</option>
+              {personnel.map(p => (
+                <option key={p.id} value={p.ho_ten}>{p.ho_ten}</option>
+              ))}
+            </select>
+
+            <input 
+              type="date" 
+              value={selectedDate}
+              onChange={(e) => {
+                setSelectedDate(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="px-3 py-1.5 border border-border rounded text-[13px] bg-card outline-none focus:ring-1 focus:ring-primary"
+            />
+            
+            {(searchQuery !== '' || selectedStaff !== '' || selectedDate !== '') && (
+              <button 
+                onClick={() => {
+                  setSearchQuery('');
+                  setSelectedStaff('');
+                  setSelectedDate('');
+                  setCurrentPage(1);
+                }}
+                className="text-[12px] text-destructive hover:underline font-medium ml-2"
+              >
+                Xoá lọc
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-3">
@@ -480,7 +544,7 @@ const AttendanceManagementPage: React.FC = () => {
                       Đang tải dữ liệu...
                     </td>
                   </tr>
-                ) : filteredRecords.map(record => (
+                ) : records.map(record => (
                   <tr key={record.id} className="hover:bg-muted/80 transition-colors">
                     <td className="px-4 py-4 text-center"><input className="rounded border-border text-primary size-4" type="checkbox" /></td>
                     {visibleColumns.includes('anh') && (
@@ -517,7 +581,7 @@ const AttendanceManagementPage: React.FC = () => {
                     )}
                   </tr>
                 ))}
-                {!loading && filteredRecords.length === 0 && (
+                {!loading && records.length === 0 && (
                   <tr>
                     <td colSpan={12} className="px-4 py-8 text-center text-muted-foreground">
                       Không tìm thấy bản ghi chấm công nào.
@@ -527,19 +591,22 @@ const AttendanceManagementPage: React.FC = () => {
               </tbody>
             </table>
           </div>
-          <div className="px-4 py-3 bg-card border-t border-border flex items-center justify-between text-[12px]">
-            <div className="flex items-center gap-1.5 text-muted-foreground">
-              <span className="font-bold text-foreground">{filteredRecords.length}</span>/Tổng:<span className="font-bold text-foreground">{records.length}</span>
-            </div>
-          </div>
+          <Pagination 
+            currentPage={currentPage}
+            pageSize={pageSize}
+            totalCount={totalCount}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+            loading={loading}
+          />
         </div>
       </div>
 
       {/* Modal - Add/Edit Attendance */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-card w-full max-w-lg rounded-3xl border border-border shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
-            <div className="px-8 py-5 border-b border-border flex items-center justify-between bg-muted/30">
+      {isModalOpen && createPortal(
+        <div className="fixed inset-0 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" style={{ zIndex: 9999999 }}>
+          <div className="bg-card w-full max-w-lg rounded-3xl border border-border shadow-2xl flex flex-col max-h-[90vh] animate-in fade-in duration-300" style={{ zIndex: 10000000 }}>
+            <div className="px-8 py-5 border-b border-border flex items-center justify-between bg-muted/30 shrink-0">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                 {editingRecord ? <Edit2 size={20} className="text-primary" /> : <Plus size={20} className="text-primary" />}
                 {editingRecord ? 'Chỉnh sửa bản ghi' : 'Thêm bản ghi chấm công'}
@@ -565,12 +632,48 @@ const AttendanceManagementPage: React.FC = () => {
                   </div>
                 </div>
 
-                <InputField label="Nhân sự" name="nhan_su" value={formData.nhan_su} onChange={handleInputChange} icon={User} placeholder="Nhập tên nhân sự..." required />
+                <div className="space-y-1.5">
+                  <label className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                    <User size={14} className="text-primary/70" />
+                    Nhân sự <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    name="nhan_su"
+                    value={formData.nhan_su || ''}
+                    onChange={handleInputChange}
+                    required
+                    className="w-full px-4 py-2.5 bg-background border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-[14px]"
+                  >
+                    <option value="">-- Chọn nhân viên --</option>
+                    {personnel.map(p => (
+                      <option key={p.id} value={p.ho_ten}>{p.ho_ten} ({p.vi_tri})</option>
+                    ))}
+                  </select>
+                </div>
+
                 <InputField label="Ngày" name="ngay" type="date" value={formData.ngay} onChange={handleInputChange} icon={Calendar} required />
 
                 <div className="grid grid-cols-2 gap-4">
-                  <InputField label="Giờ vào" name="checkin" type="time" value={formData.checkin || ''} onChange={handleInputChange} icon={Clock} />
-                  <InputField label="Giờ ra" name="checkout" type="time" value={formData.checkout || ''} onChange={handleInputChange} icon={Clock} />
+                  <div className="relative">
+                    <InputField label="Giờ vào" name="checkin" type="time" value={formData.checkin || ''} onChange={handleInputChange} icon={Clock} />
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, checkin: new Date().toTimeString().split(' ')[0].substring(0, 5) }))}
+                      className="absolute right-2 top-8 text-[10px] font-bold text-primary hover:underline bg-primary/5 px-2 py-1 rounded"
+                    >
+                      Hiện tại
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <InputField label="Giờ ra" name="checkout" type="time" value={formData.checkout || ''} onChange={handleInputChange} icon={Clock} />
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, checkout: new Date().toTimeString().split(' ')[0].substring(0, 5) }))}
+                      className="absolute right-2 top-8 text-[10px] font-bold text-primary hover:underline bg-primary/5 px-2 py-1 rounded"
+                    >
+                      Hiện tại
+                    </button>
+                  </div>
                 </div>
 
                 <div className="relative">
@@ -615,7 +718,8 @@ const AttendanceManagementPage: React.FC = () => {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

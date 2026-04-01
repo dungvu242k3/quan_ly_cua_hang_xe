@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Search, Plus, 
   Edit2, Trash2, X, Save, 
@@ -11,15 +12,22 @@ import {
 import * as XLSX from 'xlsx';
 import { useNavigate } from 'react-router-dom';
 import { clsx } from 'clsx';
-import { getInventoryRecords, addInventoryRecord, deleteInventoryRecord, bulkInsertInventoryRecords, deleteAllInventoryRecords } from '../data/inventoryData';
+import { addInventoryRecord, deleteInventoryRecord, bulkInsertInventoryRecords, deleteAllInventoryRecords, getInventoryPaginated } from '../data/inventoryData';
 import type { InventoryRecord } from '../data/inventoryData';
+import Pagination from '../components/Pagination';
 
 const InventoryManagementPage: React.FC = () => {
   const navigate = useNavigate();
   const [records, setRecords] = useState<InventoryRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [totalCount, setTotalCount] = useState(0);
+
   // Filter states
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [selectedDepts, setSelectedDepts] = useState<string[]>([]);
@@ -54,22 +62,34 @@ const InventoryManagementPage: React.FC = () => {
   const typeOptions = ["Nhập kho", "Phiếu nhập"];
   const deptOptions = ["Cơ sở Bắc Giang", "Cơ sở Bắc Ninh"];
 
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   // Load data from Supabase
-  const loadRecords = async () => {
+  const loadRecords = React.useCallback(async () => {
     try {
       setLoading(true);
-      const data = await getInventoryRecords();
-      setRecords(data);
+      const result = await getInventoryPaginated(currentPage, pageSize, debouncedSearch, {
+        loai_phieu: selectedTypes,
+        co_so: selectedDepts
+      });
+      setRecords(result.data);
+      setTotalCount(result.totalCount);
     } catch (error) {
       console.error(error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, pageSize, debouncedSearch, selectedTypes, selectedDepts]);
 
   useEffect(() => {
     loadRecords();
-  }, []);
+  }, [loadRecords]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -92,21 +112,12 @@ const InventoryManagementPage: React.FC = () => {
   };
 
   const handleFilterChange = (setter: React.Dispatch<React.SetStateAction<string[]>>, val: string) => {
-    setter(prev => prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val]);
-  };
-
-  const filteredRecords = useMemo(() => {
-    return records.filter(c => {
-      const matchSearch = 
-        (c.ten_mat_hang?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
-        (c.id_don_hang?.toLowerCase() || '').includes(searchQuery.toLowerCase());
-      
-      const matchType = selectedTypes.length === 0 || selectedTypes.includes(c.loai_phieu);
-      const matchDept = selectedDepts.length === 0 || selectedDepts.includes(c.co_so);
-
-      return matchSearch && matchType && matchDept;
+    setter(prev => {
+      const next = prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val];
+      return next;
     });
-  }, [records, searchQuery, selectedTypes, selectedDepts]);
+    setCurrentPage(1);
+  };
 
   const formatDateForDisplay = (dateStr: string | undefined) => {
     if (!dateStr) return '—';
@@ -156,7 +167,8 @@ const InventoryManagementPage: React.FC = () => {
     const { name, value } = e.target;
     
     if (name === 'so_luong' || name === 'gia') {
-      const numericValue = value.replace(/\./g, '').replace(/^0+(?!$)/, '');
+      // Loại bỏ số 0 ở đầu, giữ lại 0 nếu chuỗi rỗng
+      const numericValue = value.replace(/[^0-9]/g, '').replace(/^0+(?!$)/, '') || '0';
       const num = parseInt(numericValue, 10) || 0;
       
       setFormData(prev => {
@@ -353,7 +365,10 @@ const InventoryManagementPage: React.FC = () => {
               </div>
               <input 
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
                 className="w-full pl-9 pr-4 py-1.5 border border-border rounded text-[13px] focus:ring-1 focus:ring-primary focus:border-primary placeholder-slate-400 outline-none" 
                 placeholder="Tìm mã đơn hàng, Sản phẩm..." 
                 type="text"
@@ -545,7 +560,7 @@ const InventoryManagementPage: React.FC = () => {
                        Đang tải dữ liệu...
                      </td>
                    </tr>
-                ) : filteredRecords.map(record => {
+                ) : records.map((record: InventoryRecord) => {
                   return (
                     <tr key={record.id} className="hover:bg-muted/80 transition-colors">
                       <td className="px-4 py-4 text-center"><input className="rounded border-border text-primary size-4" type="checkbox" /></td>
@@ -624,10 +639,9 @@ const InventoryManagementPage: React.FC = () => {
                       {visibleColumns.includes('actions') && (
                         <td className="px-4 py-4">
                           <div className="flex items-center justify-center gap-4">
-                            {/* Chỉnh sửa hiện tại chưa support backend, nên ẩn đi hoặc để trống data update tuỳ mục đích */}
                             <button 
                               type="button" 
-                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); alert('Chức năng sửa đang được phát triển'); }} 
+                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleOpenModal(record); }} 
                               className="text-primary hover:text-blue-700 transition-colors"
                               title="Sửa"
                             >
@@ -647,7 +661,7 @@ const InventoryManagementPage: React.FC = () => {
                     </tr>
                   );
                 })}
-                {!loading && filteredRecords.length === 0 && (
+                {!loading && records.length === 0 && (
                   <tr>
                     <td colSpan={13} className="px-4 py-8 text-center text-muted-foreground">
                       Không tìm thấy dữ liệu nào khớp với điều kiện tìm kiếm.
@@ -657,22 +671,30 @@ const InventoryManagementPage: React.FC = () => {
               </tbody>
             </table>
           </div>
-          <div className="px-4 py-3 bg-card border-t border-border flex items-center justify-between text-[12px]">
+          <div className="px-4 py-3 bg-card border-t border-border flex flex-col sm:flex-row items-center justify-between gap-4 text-[12px]">
             <div className="flex items-center gap-1.5 text-muted-foreground">
-              <span className="font-bold text-foreground">{filteredRecords.length}</span>/Tổng:<span className="font-bold text-foreground">{records.length}</span>
+              Hiển thị <span className="font-bold text-foreground">{records.length}</span> bản ghi (Trang {currentPage})
             </div>
             <div className="flex gap-4">
-               <span className="font-medium">Tổng tiền (trang này): <span className="font-bold text-primary">{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(filteredRecords.reduce((acc, curr) => acc + curr.tong_tien, 0))}</span></span>
+               <span className="font-medium">Tổng tiền (trang này): <span className="font-bold text-primary">{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(records.reduce((acc, curr) => acc + curr.tong_tien, 0))}</span></span>
             </div>
           </div>
+          <Pagination 
+            currentPage={currentPage}
+            pageSize={pageSize}
+            totalCount={totalCount}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+            loading={loading}
+          />
         </div>
       </div>
 
       {/* Modal - Add/Edit Record */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-card w-full max-w-2xl rounded-3xl border border-border shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
-            <div className="px-8 py-5 border-b border-border flex items-center justify-between bg-muted/30">
+      {isModalOpen && createPortal(
+        <div className="fixed inset-0 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" style={{ zIndex: 9999999 }}>
+          <div className="bg-card w-full max-w-2xl rounded-3xl border border-border shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in duration-300" style={{ zIndex: 10000000 }}>
+            <div className="px-8 py-5 border-b border-border flex items-center justify-between bg-muted/30 shrink-0">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                 {editingRecord ? <Edit2 size={20} className="text-primary" /> : <Plus size={20} className="text-primary" />}
                 {editingRecord ? 'Chỉnh sửa phiếu' : 'Thêm Phiếu Mới'}
@@ -751,7 +773,8 @@ const InventoryManagementPage: React.FC = () => {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

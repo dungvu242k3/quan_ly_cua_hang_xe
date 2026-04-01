@@ -54,8 +54,43 @@ const SalesCardFormModal: React.FC<{
   onSubmit: (data: Partial<SalesCard & { dich_vu_ids?: string[] }>) => Promise<void>;
   onCustomerAdded: () => Promise<void>;
 }> = React.memo(({ isOpen, editingCard, initialData, customers, personnel, services, onClose, onSubmit, onCustomerAdded }) => {
-  const [formData, setFormData] = useState<Partial<SalesCard & { dich_vu_ids?: string[] }>>(initialData);
+  const [formData, setFormData] = useState<Partial<SalesCard & { dich_vu_ids?: string[], service_items?: { id: string, ten_dich_vu: string, gia_ban: number }[] }>>(initialData);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
+
+  // Memoize heavy options so dropdowns don't re-render on every keystroke
+  const customerOptions = React.useMemo(() => customers.map(c => ({
+    value: c.id,
+    label: c.ho_va_ten
+  })), [customers]);
+
+  const serviceOptions = React.useMemo(() => services.map(s => ({
+    value: s.id,
+    label: s.ten_dich_vu,
+    price: new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(s.gia_ban)
+  })), [services]);
+
+  // Sync service_items with dich_vu_ids
+  React.useEffect(() => {
+    if (formData.dich_vu_ids) {
+      const currentItems = formData.service_items || [];
+      const ids = formData.dich_vu_ids;
+      
+      const updatedItems = ids.map(id => {
+        const existing = currentItems.find(item => item.id === id);
+        if (existing) return existing;
+        const service = services.find(s => s.id === id);
+        return {
+          id,
+          ten_dich_vu: service?.ten_dich_vu || 'Dịch vụ',
+          gia_ban: service?.gia_ban || 0
+        };
+      });
+
+      if (JSON.stringify(updatedItems) !== JSON.stringify(currentItems)) {
+        setFormData(prev => ({ ...prev, service_items: updatedItems }));
+      }
+    }
+  }, [formData.dich_vu_ids, services]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -66,6 +101,16 @@ const SalesCardFormModal: React.FC<{
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
+  };
+
+  const handlePriceChange = (id: string, newPrice: string) => {
+    const numericPrice = parseInt(newPrice.replace(/\D/g, '') || '0', 10);
+    setFormData(prev => ({
+      ...prev,
+      service_items: prev.service_items?.map(item => 
+        item.id === id ? { ...item, gia_ban: numericPrice } : item
+      )
+    }));
   };
 
   const formatNumber = (num: number | undefined) => {
@@ -114,10 +159,7 @@ const SalesCardFormModal: React.FC<{
                   </button>
                 </label>
                 <SearchableSelect
-                  options={customers.map(c => ({
-                    value: c.id,
-                    label: c.ho_va_ten
-                  }))}
+                  options={customerOptions}
                   value={formData.khach_hang_id || undefined}
                   onValueChange={(val: string) => setFormData(prev => ({ ...prev, khach_hang_id: val }))}
                   placeholder="-- Chọn hoặc tìm khách hàng --"
@@ -148,17 +190,63 @@ const SalesCardFormModal: React.FC<{
                   Dịch vụ sử dụng <span className="text-red-500">*</span>
                 </label>
                 <MultiSearchableSelect
-                  options={services.map(s => ({
-                    value: s.id,
-                    label: s.ten_dich_vu,
-                    price: new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(s.gia_ban)
-                  }))}
+                  options={serviceOptions}
                   value={formData.dich_vu_ids || []}
                   onValueChange={(vals: string[]) => setFormData(prev => ({ ...prev, dich_vu_ids: vals }))}
                   placeholder="-- Chọn hoặc tìm nhiều dịch vụ --"
                   searchPlaceholder="Tìm tên dịch vụ..."
                   className="font-bold"
                 />
+
+                {/* Detailed Service Table */}
+                {formData.service_items && formData.service_items.length > 0 && (
+                  <div className="mt-4 border border-border rounded-2xl overflow-hidden bg-muted/20 animate-in fade-in slide-in-from-top-1 duration-300">
+                    <table className="w-full text-[13px]">
+                      <thead>
+                        <tr className="bg-muted/50 border-b border-border text-muted-foreground font-bold text-[11px] uppercase tracking-wider">
+                          <th className="px-4 py-2 text-left">Tên dịch vụ</th>
+                          <th className="px-4 py-2 text-right w-[180px]">Đơn giá</th>
+                          <th className="px-4 py-2 text-right w-[150px]">Thành tiền</th>
+                          <th className="w-10"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/50">
+                        {formData.service_items.map((item) => (
+                          <tr key={item.id} className="hover:bg-muted/30 transition-colors">
+                            <td className="px-4 py-3 font-medium text-foreground">{item.ten_dich_vu}</td>
+                            <td className="px-4 py-3 text-right">
+                              <div className="relative group">
+                                <input
+                                  type="text"
+                                  value={formatNumber(item.gia_ban)}
+                                  onChange={(e) => handlePriceChange(item.id, e.target.value)}
+                                  className="w-full text-right bg-background border border-transparent hover:border-border focus:border-primary px-2 py-1.5 rounded-lg outline-none font-bold text-primary transition-all pr-8"
+                                />
+                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground font-medium pointer-events-none group-focus-within:text-primary transition-colors">đ</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-right font-bold text-foreground">
+                              {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(item.gia_ban)}
+                            </td>
+                            <td className="px-2 py-3 text-center">
+                              <button 
+                                type="button"
+                                onClick={() => setFormData(prev => ({
+                                  ...prev,
+                                  dich_vu_ids: prev.dich_vu_ids?.filter(id => id !== item.id),
+                                  service_items: prev.service_items?.filter(i => i.id !== item.id)
+                                }))}
+                                className="p-1.5 text-muted-foreground/50 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                              >
+                                <X size={14} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
 
               {/* Evaluation */}
@@ -187,19 +275,15 @@ const SalesCardFormModal: React.FC<{
               <InputField label="Ngày nhắc thay dầu" name="ngay_nhac_thay_dau" type="date" value={formData.ngay_nhac_thay_dau || ''} onChange={handleInputChange} icon={Calendar} />
             </div>
 
-            {/* Live Total Calculation */}
-            {formData.dich_vu_ids && formData.dich_vu_ids.length > 0 && (
+            {formData.service_items && formData.service_items.length > 0 && (
               <div className="mt-8 bg-primary/5 p-5 rounded-2xl border border-primary/20 border-dashed flex justify-between items-center animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <div className="space-y-0.5">
-                  <div className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider">Tổng chi phí dự tính</div>
-                  <div className="text-[11px] text-muted-foreground">({formData.dich_vu_ids.length} dịch vụ đã chọn)</div>
+                  <div className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider">Tổng chi phí dịch vụ</div>
+                  <div className="text-[11px] text-muted-foreground">({formData.service_items.length} hạng mục đã chọn)</div>
                 </div>
                 <div className="text-2xl font-black text-primary tracking-tight">
                   {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(
-                    formData.dich_vu_ids.reduce((sum, sId) => {
-                      const service = services.find(s => s.id === sId);
-                      return sum + (service?.gia_ban || 0);
-                    }, 0)
+                    formData.service_items.reduce((sum, item) => sum + (item.gia_ban || 0), 0)
                   )}
                 </div>
               </div>

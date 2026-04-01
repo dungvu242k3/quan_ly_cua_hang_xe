@@ -27,6 +27,20 @@ export const getCustomers = async (): Promise<KhachHang[]> => {
   return data as KhachHang[];
 };
 
+// Lightweight version for dropdown selects - excludes heavy columns like 'anh' (Base64)
+export const getCustomersForSelect = async (): Promise<Pick<KhachHang, 'id' | 'ho_va_ten' | 'so_dien_thoai' | 'bien_so_xe' | 'ma_khach_hang'>[]> => {
+  const { data, error } = await supabase
+    .from('khach_hang')
+    .select('id, ho_va_ten, so_dien_thoai, bien_so_xe, ma_khach_hang')
+    .order('ho_va_ten', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching customers for select:', error);
+    throw error;
+  }
+  return data || [];
+};
+
 export const getCustomersPaginated = async (
   page: number, 
   pageSize: number, 

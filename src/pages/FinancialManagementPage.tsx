@@ -1,27 +1,39 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
-  Search, Plus, 
-  Edit2, Trash2, Camera, X, Save, 
-  User, Loader2,
-  ArrowLeft, ChevronDown, 
-  Building2, Wallet, Calendar, Clock, FileText, BadgeDollarSign, Tag,
-  Download, Upload
+  Search, Plus, Edit2, Trash2, Camera, Loader2, ChevronDown, 
+  Building2, Wallet, BadgeDollarSign, Download, Upload
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { clsx } from 'clsx';
-import { getTransactions, upsertTransaction, deleteTransaction, uploadTransactionImage, bulkUpsertTransactions, deleteAllTransactions } from '../data/financialData';
+import { 
+  getTransactionsPaginated, 
+  getTransactionStats,
+  deleteTransaction, 
+  bulkUpsertTransactions, 
+  deleteAllTransactions,
+  upsertTransaction
+} from '../data/financialData';
 import type { ThuChi } from '../data/financialData';
+import Pagination from '../components/Pagination';
+import FinancialFormModal from '../components/FinancialFormModal';
 
 const FinancialManagementPage: React.FC = () => {
-  const navigate = useNavigate();
+  const location = useLocation();
   const [transactions, setTransactions] = useState<ThuChi[]>([]);
+  const [stats, setStats] = useState({ income: 0, expense: 0, balance: 0 });
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
   
-  // Filter states
+  // Search & Filter
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedBranches, setSelectedBranches] = useState<string[]>([]);
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [totalCount, setTotalCount] = useState(0);
   
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -29,29 +41,43 @@ const FinancialManagementPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<ThuChi | null>(null);
   const [formData, setFormData] = useState<Partial<ThuChi>>({});
-  const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const branchOptions = ["Cơ sở Bắc Giang", "Cơ sở Bắc Ninh"];
   const typeOptions = ["phiếu thu", "phiếu chi"];
   const statusOptions = ["Hoàn thành", "Đang chờ", "Đã hủy"];
 
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   // Load data from Supabase
-  const loadTransactions = async () => {
+  const loadData = React.useCallback(async () => {
     try {
       setLoading(true);
-      const data = await getTransactions();
-      setTransactions(data);
+      const [transactionsData, statsData] = await Promise.all([
+        getTransactionsPaginated(currentPage, pageSize, debouncedSearch, {
+          branches: selectedBranches,
+          types: selectedTypes
+        }),
+        getTransactionStats()
+      ]);
+      setTransactions(transactionsData.data);
+      setTotalCount(transactionsData.totalCount);
+      setStats(statsData);
     } catch (error) {
       console.error(error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, pageSize, debouncedSearch, selectedBranches, selectedTypes, location.pathname]);
 
   useEffect(() => {
-    loadTransactions();
-  }, []);
+    loadData();
+  }, [loadData]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -68,29 +94,14 @@ const FinancialManagementPage: React.FC = () => {
   };
 
   const handleFilterChange = (setter: React.Dispatch<React.SetStateAction<string[]>>, val: string) => {
-    setter(prev => prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val]);
-  };
-
-  const filteredTransactions = useMemo(() => {
-    return transactions.filter(t => {
-      const matchSearch = 
-        (t.id_don?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
-        (t.id_khach_hang?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
-        (t.danh_muc?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
-        (t.ghi_chu?.toLowerCase() || '').includes(searchQuery.toLowerCase());
-      
-      const matchBranch = selectedBranches.length === 0 || selectedBranches.includes(t.co_so);
-      const matchType = selectedTypes.length === 0 || selectedTypes.includes(t.loai_phieu);
-
-      return matchSearch && matchBranch && matchType;
+    setter(prev => {
+      const isSelected = prev.includes(val);
+      const newFilters = isSelected ? prev.filter(v => v !== val) : [...prev, val];
+      // Reset to page 1 on filter change
+      setCurrentPage(1); 
+      return newFilters;
     });
-  }, [transactions, searchQuery, selectedBranches, selectedTypes]);
-
-  const stats = useMemo(() => {
-    const income = transactions.filter(t => t.loai_phieu === 'phiếu thu' && t.trang_thai === 'Hoàn thành').reduce((sum, t) => sum + Number(t.so_tien), 0);
-    const expense = transactions.filter(t => t.loai_phieu === 'phiếu chi' && t.trang_thai === 'Hoàn thành').reduce((sum, t) => sum + Number(t.so_tien), 0);
-    return { income, expense, balance: income - expense };
-  }, [transactions]);
+  };
 
   const handleOpenModal = (transaction?: ThuChi) => {
     if (transaction) {
@@ -122,43 +133,10 @@ const FinancialManagementPage: React.FC = () => {
     setFormData({});
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    if (name === 'so_tien') {
-      const numericValue = value.replace(/\D/g, '');
-      setFormData(prev => ({ ...prev, [name]: Number(numericValue) }));
-    } else {
-      setFormData(prev => ({ ...prev, [name]: value }));
-    }
-  };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      try {
-        setUploading(true);
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          setFormData(prev => ({ ...prev, anh: reader.result as string }));
-        };
-        reader.readAsDataURL(file);
-
-        const publicUrl = await uploadTransactionImage(file);
-        setFormData(prev => ({ ...prev, anh: publicUrl }));
-      } catch (error) {
-        console.error('Error uploading image:', error);
-        alert('Lỗi khi tải ảnh lên. Vui lòng thử lại.');
-      } finally {
-        setUploading(false);
-      }
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (formDataToSave: Partial<ThuChi>) => {
     try {
-      await upsertTransaction(formData);
-      await loadTransactions();
+      await upsertTransaction(formDataToSave);
+      await loadData();
       handleCloseModal();
     } catch (error) {
       alert('Lỗi: Không thể lưu thông tin giao dịch.');
@@ -193,7 +171,7 @@ const FinancialManagementPage: React.FC = () => {
       try {
         setLoading(true);
         await deleteAllTransactions();
-        await loadTransactions();
+        await loadData();
         alert('Đã xóa toàn bộ dữ liệu.');
       } catch (error) {
         alert('Lỗi: Không thể xóa toàn bộ dữ liệu.');
@@ -276,7 +254,7 @@ const FinancialManagementPage: React.FC = () => {
         if (formattedData.length > 0) {
           setLoading(true);
           await bulkUpsertTransactions(formattedData);
-          await loadTransactions();
+          await loadData();
           alert(`Đã nhập thành công ${formattedData.length} bản ghi thu chi!`);
         }
       } catch (error) {
@@ -294,7 +272,7 @@ const FinancialManagementPage: React.FC = () => {
     if (window.confirm('Bạn có chắc chắn muốn xóa giao dịch này?')) {
       try {
         await deleteTransaction(id);
-        await loadTransactions();
+        await loadData();
       } catch (error) {
         alert('Lỗi: Không thể xóa giao dịch.');
       }
@@ -327,16 +305,16 @@ const FinancialManagementPage: React.FC = () => {
         {/* Toolbar */}
         <div className="bg-card p-3 rounded-lg border border-border shadow-sm flex flex-wrap items-center justify-between gap-4" ref={dropdownRef}>
           <div className="flex items-center gap-3 flex-1 flex-wrap">
-            <button onClick={() => navigate(-1)} className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded text-[13px] text-muted-foreground hover:bg-accent transition-colors">
-              <ArrowLeft size={18} /> Quay lại
-            </button>
             <div className="relative w-full sm:w-[250px]">
               <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60">
                 <Search size={18} />
               </div>
               <input 
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1); // Reset to page 1 on search
+                }}
                 className="w-full pl-9 pr-4 py-1.5 border border-border rounded text-[13px] focus:ring-1 focus:ring-primary focus:border-primary placeholder-slate-400 outline-none" 
                 placeholder="Tìm giao dịch..." 
                 type="text"
@@ -469,7 +447,7 @@ const FinancialManagementPage: React.FC = () => {
                        Đang tải dữ liệu...
                      </td>
                    </tr>
-                ) : filteredTransactions.map(transaction => (
+                ) : transactions.map(transaction => (
                   <tr key={transaction.id} className="hover:bg-muted/80 transition-colors">
                     <td className="px-4 py-4">
                       {transaction.anh ? (
@@ -519,93 +497,36 @@ const FinancialManagementPage: React.FC = () => {
                     </td>
                   </tr>
                 ))}
-                {!loading && filteredTransactions.length === 0 && (
+                {!loading && transactions.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">Không có dữ liệu giao dịch.</td>
+                    <td colSpan={12} className="px-4 py-8 text-center text-muted-foreground">Không có dữ liệu giao dịch.</td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
+          <Pagination 
+            currentPage={currentPage}
+            pageSize={pageSize}
+            totalCount={totalCount}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+            loading={loading}
+          />
         </div>
       </div>
 
-      {/* Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200" style={{ zIndex: 1000 }}>
-          <div className="bg-card w-full max-w-2xl rounded-3xl border border-border shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="px-8 py-5 border-b border-border flex items-center justify-between">
-              <h3 className="text-lg font-bold text-foreground">{editingTransaction ? 'Sửa Giao dịch' : 'Thêm Giao dịch mới'}</h3>
-              <button onClick={handleCloseModal} className="p-2 rounded-full hover:bg-muted text-muted-foreground transition-colors"><X size={20} /></button>
-            </div>
-
-            <form onSubmit={handleSubmit} className="overflow-y-auto p-8 flex-1">
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider">Loại phiếu</label>
-                    <select name="loai_phieu" value={formData.loai_phieu} onChange={handleInputChange} className="w-full px-4 py-2 bg-background border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/20 text-[14px]">
-                      {typeOptions.map(opt => <option key={opt} value={opt}>{opt.toUpperCase()}</option>)}
-                    </select>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider">Số tiền (VNĐ)</label>
-                    <input 
-                      type="text" name="so_tien" value={transactionDisplayAmount(formData.so_tien)} onChange={handleInputChange} required 
-                      className="w-full px-4 py-2 bg-background border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/20 text-[14px] font-bold text-primary" 
-                    />
-                  </div>
-
-                  <InputField label="Danh mục" name="danh_muc" value={formData.danh_muc || ''} onChange={handleInputChange} icon={Tag} placeholder="Vd: Thu sửa xe, Chi nhập hàng..." />
-                  <InputField label="Cơ sở" name="co_so" type="select" options={branchOptions} value={formData.co_so || ''} onChange={handleInputChange} icon={Building2} />
-                  
-                  <InputField label="ID Đơn hàng" name="id_don" value={formData.id_don || ''} onChange={handleInputChange} icon={FileText} placeholder="Mã đơn hàng..." />
-                  <InputField label="ID Khách hàng" name="id_khach_hang" value={formData.id_khach_hang || ''} onChange={handleInputChange} icon={User} placeholder="Số điện thoại hoặc tên KH..." />
-                  
-                  <InputField label="Ngày" name="ngay" type="date" value={formData.ngay || ''} onChange={handleInputChange} icon={Calendar} />
-                  <InputField label="Giờ" name="gio" type="time" value={formData.gio || ''} onChange={handleInputChange} icon={Clock} />
-
-                  <InputField label="Trạng thái" name="trang_thai" type="select" options={statusOptions} value={formData.trang_thai || ''} onChange={handleInputChange} icon={BadgeDollarSign} />
-                  
-                  <div className="md:col-span-2 space-y-1.5">
-                    <label className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider">Ghi chú</label>
-                    <textarea 
-                      name="ghi_chu" value={formData.ghi_chu || ''} onChange={handleInputChange} rows={3}
-                      className="w-full px-4 py-2 bg-background border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/20 text-[14px]"
-                      placeholder="Thông tin thêm..."
-                    />
-                  </div>
-
-                  <div className="md:col-span-2 flex flex-col items-center gap-2 pt-4">
-                    <label className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider">Ảnh chứng từ / Hóa đơn</label>
-                    <div className="relative group w-full max-w-[200px]">
-                      <div className="aspect-square rounded-2xl border-2 border-dashed border-border bg-primary/5 flex items-center justify-center text-primary overflow-hidden shadow-inner">
-                        {formData.anh ? <img src={formData.anh || undefined} alt="Preview" className="w-full h-full object-cover" /> : <Camera size={40} className="opacity-20" />}
-                        {uploading && <div className="absolute inset-0 bg-black/40 flex items-center justify-center"><Loader2 className="animate-spin text-white" /></div>}
-                      </div>
-                      <button 
-                        type="button" 
-                        onClick={() => fileInputRef.current?.click()}
-                        className="absolute -bottom-2 -right-2 w-10 h-10 bg-primary text-white rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-all border-4 border-card"
-                      >
-                        <Camera size={20} />
-                      </button>
-                      <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-8 flex items-center justify-end gap-3 pt-6 border-t border-border">
-                  <button type="button" onClick={handleCloseModal} className="px-6 py-2 rounded-xl text-sm font-bold border border-border hover:bg-muted transition-all">Hủy</button>
-                  <button type="submit" className="px-8 py-2 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/25 transition-all flex items-center gap-2">
-                    <Save size={18} /> <span>{editingTransaction ? 'Lưu thay đổi' : 'Ghi nhận phiếu'}</span>
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
+        <FinancialFormModal
+          isOpen={isModalOpen}
+          editingTransaction={editingTransaction}
+          initialData={formData}
+          onClose={handleCloseModal}
+          onSubmit={handleSubmit}
+          branchOptions={branchOptions}
+          typeOptions={typeOptions}
+          statusOptions={statusOptions}
+        />
       )}
     </div>
   );
@@ -623,38 +544,6 @@ const StatCard: React.FC<{ title: string, amount: number, color: string, bgColor
   </div>
 );
 
-const transactionDisplayAmount = (amount?: number) => {
-  if (amount === undefined || amount === null) return '0';
-  return amount.toLocaleString('vi-VN');
-};
 
-const InputField: React.FC<{ 
-  label: string, 
-  name: string, 
-  value?: string | number, 
-  onChange: (e: any) => void, 
-  icon: React.ElementType,
-  type?: 'text' | 'date' | 'time' | 'select',
-  options?: string[],
-  required?: boolean,
-  placeholder?: string
-}> = ({ label, name, value, onChange, icon: Icon, type = 'text', options, required, placeholder }) => (
-  <div className="space-y-1.5">
-    <label className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-      <Icon size={14} className="text-primary/70" />
-      {label} {required && <span className="text-red-500">*</span>}
-    </label>
-    {type === 'select' ? (
-      <select name={name} value={value || ''} onChange={onChange} required={required} className="w-full px-4 py-2 bg-background border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/20 text-[14px]">
-        {options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-      </select>
-    ) : (
-      <input 
-        type={type} name={name} value={value || ''} onChange={onChange} required={required} placeholder={placeholder}
-        className="w-full px-4 py-2 bg-background border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/20 text-[14px]" 
-      />
-    )}
-  </div>
-);
 
 export default FinancialManagementPage;

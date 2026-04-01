@@ -3,32 +3,36 @@ import {
   ArrowLeft,
   Briefcase,
   Building2,
-  Camera,
   ChevronDown,
   Download,
   Edit2,
   Loader2,
-  Mail,
-  Phone,
   Plus,
-  Save,
   Search,
   Trash2,
   Upload,
-  User,
-  X
+  User
 } from 'lucide-react';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import type { NhanSu } from '../data/personnelData';
-import { bulkUpsertPersonnel, deletePersonnel, getPersonnel, uploadPersonnelImage, upsertPersonnel } from '../data/personnelData';
+import { bulkUpsertPersonnel, deletePersonnel, getPersonnelPaginated, upsertPersonnel } from '../data/personnelData';
+import Pagination from '../components/Pagination';
+import PersonnelFormModal from '../components/PersonnelFormModal';
 
 const PersonnelManagementPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [personnel, setPersonnel] = useState<NhanSu[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [totalCount, setTotalCount] = useState(0);
 
   // Filter states
   const [selectedBranches, setSelectedBranches] = useState<string[]>([]);
@@ -40,27 +44,38 @@ const PersonnelManagementPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPerson, setEditingPerson] = useState<NhanSu | null>(null);
   const [formData, setFormData] = useState<Partial<NhanSu>>({});
-  const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const positionOptions = ["kỹ thuật viên", "quản lý"];
   const branchOptions = ["Cơ sở Bắc Giang", "Cơ sở Bắc Ninh"];
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   // Load data from Supabase
-  const loadPersonnel = async () => {
+  const loadData = React.useCallback(async () => {
     try {
       setLoading(true);
-      const data = await getPersonnel();
-      setPersonnel(data);
+      const data = await getPersonnelPaginated(currentPage, pageSize, debouncedSearch, {
+        branches: selectedBranches,
+        positions: selectedPositions
+      });
+      setPersonnel(data.data);
+      setTotalCount(data.totalCount);
     } catch (error) {
       console.error(error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, pageSize, debouncedSearch, selectedBranches, selectedPositions, location.pathname]);
 
   useEffect(() => {
-    loadPersonnel();
-  }, []);
+    loadData();
+  }, [loadData]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -77,22 +92,13 @@ const PersonnelManagementPage: React.FC = () => {
   };
 
   const handleFilterChange = (setter: React.Dispatch<React.SetStateAction<string[]>>, val: string) => {
-    setter(prev => prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val]);
-  };
-
-  const filteredPersonnel = useMemo(() => {
-    return personnel.filter(p => {
-      const matchSearch =
-        (p.ho_ten?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
-        (p.email?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
-        (p.sdt || '').includes(searchQuery);
-
-      const matchBranch = selectedBranches.length === 0 || selectedBranches.includes(p.co_so);
-      const matchPosition = selectedPositions.length === 0 || selectedPositions.includes(p.vi_tri);
-
-      return matchSearch && matchBranch && matchPosition;
+    setter(prev => {
+      const isSelected = prev.includes(val);
+      const newFilters = isSelected ? prev.filter(v => v !== val) : [...prev, val];
+      setCurrentPage(1); 
+      return newFilters;
     });
-  }, [personnel, searchQuery, selectedBranches, selectedPositions]);
+  };
 
   const handleOpenModal = (person?: NhanSu) => {
     if (person) {
@@ -118,40 +124,10 @@ const PersonnelManagementPage: React.FC = () => {
     setFormData({});
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      try {
-        setUploading(true);
-        // Show local preview first
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          setFormData(prev => ({ ...prev, hinh_anh: reader.result as string }));
-        };
-        reader.readAsDataURL(file);
-
-        // Upload to Supabase Storage
-        const publicUrl = await uploadPersonnelImage(file);
-        setFormData(prev => ({ ...prev, hinh_anh: publicUrl }));
-      } catch (error) {
-        console.error('Error uploading image:', error);
-        alert('Lỗi khi tải ảnh lên. Vui lòng thử lại.');
-      } finally {
-        setUploading(false);
-      }
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (formDataToSave: Partial<NhanSu>) => {
     try {
-      await upsertPersonnel(formData);
-      await loadPersonnel();
+      await upsertPersonnel(formDataToSave);
+      await loadData();
       handleCloseModal();
     } catch (error) {
       alert('Lỗi: Không thể lưu thông tin nhân sự.');
@@ -240,7 +216,7 @@ const PersonnelManagementPage: React.FC = () => {
           setLoading(true);
           try {
             await bulkUpsertPersonnel(formattedData);
-            await loadPersonnel();
+            await loadData();
             alert(`Đã nhập thành công ${formattedData.length} bản ghi nhân sự!`);
           } catch (err: any) {
             console.error('Full Error Object:', err);
@@ -262,7 +238,7 @@ const PersonnelManagementPage: React.FC = () => {
     if (window.confirm('Bạn có chắc chắn muốn xóa nhân viên này?')) {
       try {
         await deletePersonnel(id);
-        await loadPersonnel();
+        await loadData();
       } catch (error) {
         alert('Lỗi: Không thể xóa nhân viên.');
       }
@@ -284,7 +260,10 @@ const PersonnelManagementPage: React.FC = () => {
               </div>
               <input
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
                 className="w-full pl-9 pr-4 py-1.5 border border-border rounded text-[13px] focus:ring-1 focus:ring-primary focus:border-primary placeholder-slate-400 outline-none"
                 placeholder="Tìm tên, email, SĐT..."
                 type="text"
@@ -403,7 +382,7 @@ const PersonnelManagementPage: React.FC = () => {
                       Đang tải dữ liệu...
                     </td>
                   </tr>
-                ) : filteredPersonnel.map(person => (
+                ) : personnel.map(person => (
                   <tr key={person.id} className="hover:bg-muted/80 transition-colors">
                     <td className="px-4 py-4">
                       <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary overflow-hidden border border-border shadow-sm">
@@ -434,7 +413,7 @@ const PersonnelManagementPage: React.FC = () => {
                     </td>
                   </tr>
                 ))}
-                {!loading && filteredPersonnel.length === 0 && (
+                {!loading && personnel.length === 0 && (
                   <tr>
                     <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">Không có dữ liệu nhân sự.</td>
                   </tr>
@@ -442,91 +421,28 @@ const PersonnelManagementPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+          <Pagination 
+            currentPage={currentPage}
+            pageSize={pageSize}
+            totalCount={totalCount}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+            loading={loading}
+          />
         </div>
       </div>
 
-      {/* Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-card w-full max-w-xl rounded-3xl border border-border shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="px-8 py-5 border-b border-border flex items-center justify-between">
-              <h3 className="text-lg font-bold text-foreground">{editingPerson ? 'Sửa Nhân sự' : 'Thêm Nhân sự mới'}</h3>
-              <button onClick={handleCloseModal} className="p-2 rounded-full hover:bg-muted text-muted-foreground transition-colors"><X size={20} /></button>
-            </div>
-
-            <form onSubmit={handleSubmit} className="overflow-y-auto p-8 flex-1">
-              <div className="space-y-6">
-                <div className="flex flex-col items-center mb-4">
-                  <div className="relative group">
-                    <div className="w-24 h-24 rounded-full border-4 border-card bg-primary/10 flex items-center justify-center text-primary overflow-hidden shadow-inner font-bold text-2xl">
-                      {formData.hinh_anh ? <img src={formData.hinh_anh} alt="Preview" className="w-full h-full object-cover" /> : <User size={40} />}
-                      {uploading && <div className="absolute inset-0 bg-black/40 flex items-center justify-center"><Loader2 className="animate-spin text-white" /></div>}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="absolute bottom-0 right-0 w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-all"
-                    >
-                      <Camera size={16} />
-                    </button>
-                    <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <InputField label="Họ và tên" name="ho_ten" value={formData.ho_ten ?? ''} onChange={handleInputChange} icon={User} required placeholder="Nguyễn Văn A" />
-                  <InputField label="SĐT" name="sdt" value={formData.sdt ?? ''} onChange={handleInputChange} icon={Phone} placeholder="09xxxxxxx" />
-                  <InputField label="Email" name="email" value={formData.email ?? ''} onChange={handleInputChange} icon={Mail} placeholder="email@example.com" />
-
-                  <div className="space-y-1.5">
-                    <label className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2"><Briefcase size={14} className="text-primary/70" />Vị trí</label>
-                    <select name="vi_tri" value={formData.vi_tri} onChange={handleInputChange} className="w-full px-4 py-2 bg-background border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/20 text-[14px]">
-                      {positionOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                    </select>
-                  </div>
-
-                  <div className="space-y-1.5 md:col-span-2">
-                    <label className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2"><Building2 size={14} className="text-primary/70" />Cơ sở</label>
-                    <select name="co_so" value={formData.co_so} onChange={handleInputChange} className="w-full px-4 py-2 bg-background border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/20 text-[14px]">
-                      {branchOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="mt-8 flex items-center justify-end gap-3 pt-6 border-t border-border">
-                  <button type="button" onClick={handleCloseModal} className="px-6 py-2 rounded-xl text-sm font-bold border border-border hover:bg-muted transition-all">Hủy</button>
-                  <button type="submit" className="px-8 py-2 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/25 transition-all flex items-center gap-2">
-                    <Save size={18} /> <span>{editingPerson ? 'Lưu thay đổi' : 'Thêm mới'}</span>
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <PersonnelFormModal
+        isOpen={isModalOpen}
+        editingPerson={editingPerson}
+        initialData={formData}
+        onClose={handleCloseModal}
+        onSubmit={handleSubmit}
+        branchOptions={branchOptions}
+        positionOptions={positionOptions}
+      />
     </div>
   );
 };
-
-const InputField: React.FC<{
-  label: string,
-  name: string,
-  value?: string,
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void,
-  icon: React.ElementType,
-  required?: boolean,
-  placeholder?: string
-}> = ({ label, name, value, onChange, icon: Icon, required, placeholder }) => (
-  <div className="space-y-1.5">
-    <label className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-      <Icon size={14} className="text-primary/70" />
-      {label} {required && <span className="text-red-500">*</span>}
-    </label>
-    <input
-      type="text" name={name} value={value || ''} onChange={onChange} required={required} placeholder={placeholder}
-      className="w-full px-4 py-2 bg-background border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/20 text-[14px]"
-    />
-  </div>
-);
 
 export default PersonnelManagementPage;

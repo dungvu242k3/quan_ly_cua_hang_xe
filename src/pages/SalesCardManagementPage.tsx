@@ -10,12 +10,12 @@ import {
   Trash2,
   Upload
 } from 'lucide-react';
-import React, { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import Pagination from '../components/Pagination';
 import type { KhachHang } from '../data/customerData';
-import { bulkUpsertCustomers, getCustomers } from '../data/customerData';
+import { bulkUpsertCustomers, getCustomersForSelect, getCustomers } from '../data/customerData';
 import type { NhanSu } from '../data/personnelData';
 import { getPersonnel } from '../data/personnelData';
 import type { SalesCard } from '../data/salesCardData';
@@ -34,7 +34,7 @@ const SalesCardManagementPage: React.FC = () => {
 
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [, startTransition] = useTransition();
+  const [debouncedSearch, setDebouncedSearch] = useState('');
 
   const location = useLocation();
 
@@ -47,18 +47,26 @@ const SalesCardManagementPage: React.FC = () => {
   const [editingCard, setEditingCard] = useState<SalesCard | null>(null);
   const [formData, setFormData] = useState<Partial<SalesCard>>({});
 
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
       const [cardsResult, custData, persData, servData] = await Promise.all([
-        getSalesCardsPaginated(currentPage, pageSize, searchQuery),
-        getCustomers(),
+        getSalesCardsPaginated(currentPage, pageSize, debouncedSearch),
+        getCustomersForSelect(), // Lightweight: only id, name, phone, plate, legacy_id
         getPersonnel(),
         getServices()
       ]);
       setSalesCards(cardsResult.data);
       setTotalCount(cardsResult.totalCount);
-      setCustomers(custData);
+      setCustomers(custData as KhachHang[]);
       setPersonnel(persData);
       setServices(servData);
     } catch (error) {
@@ -66,7 +74,7 @@ const SalesCardManagementPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, pageSize, searchQuery, location.pathname]);
+  }, [currentPage, pageSize, debouncedSearch, location.pathname]);
 
   useEffect(() => {
     loadData();
@@ -102,9 +110,9 @@ const SalesCardManagementPage: React.FC = () => {
     setFormData({});
   };
 
-  const handleSubmit = async (formData: Partial<SalesCard & { dich_vu_ids?: string[] }>) => {
+  const handleSubmit = async (formDataHeader: Partial<SalesCard & { dich_vu_ids?: string[], service_items?: { id: string, ten_dich_vu: string, gia_ban: number }[] }>) => {
     try {
-      const { khach_hang, nhan_su, dich_vu, dich_vu_ids, ...cleanData } = formData as any;
+      const { khach_hang, nhan_su, dich_vu, dich_vu_ids, ...cleanData } = formDataHeader as any;
       
       // Sanitize date fields to avoid "invalid input syntax for type date" error in Supabase
       if (cleanData.ngay_nhac_thay_dau === '') cleanData.ngay_nhac_thay_dau = null;
@@ -117,7 +125,23 @@ const SalesCardManagementPage: React.FC = () => {
       const savedCard = await upsertSalesCard(cleanData);
 
       // Automatically create detail records for all selected services
-      if (dich_vu_ids && dich_vu_ids.length > 0) {
+      if (formDataHeader.service_items && formDataHeader.service_items.length > 0) {
+        const detailRecords = formDataHeader.service_items.map((item) => {
+          const service = services.find(s => s.id === item.id);
+          return {
+            don_hang_id: savedCard.id,
+            ten_don_hang: `Phiếu bán hàng ${savedCard.id.slice(0, 8)}`,
+            san_pham: item.ten_dich_vu,
+            co_so: service?.co_so || 'Cơ sở chính',
+            gia_ban: item.gia_ban,
+            gia_von: service?.gia_nhap || 0,
+            so_luong: 1,
+            chi_phi: 0,
+            ngay: savedCard.ngay
+          };
+        });
+        await bulkUpsertSalesCardCTs(detailRecords);
+      } else if (dich_vu_ids && dich_vu_ids.length > 0) {
         const detailRecords = dich_vu_ids.map((sId: string) => {
           const service = services.find(s => s.id === sId);
           return {
@@ -185,17 +209,16 @@ const SalesCardManagementPage: React.FC = () => {
             return d.toISOString().split('T')[0];
           }
           const s = String(val).trim();
-          // Intelligent Date Parser (supports DD/MM/YYYY and MM/DD/YYYY)
           const dateMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
           if (dateMatch) {
             const p1 = parseInt(dateMatch[1]);
             const p2 = parseInt(dateMatch[2]);
             const p3 = dateMatch[3];
-            if (p1 > 12) { // Format: DD/MM/YYYY
+            if (p1 > 12) {
               return `${p3}-${String(p2).padStart(2, '0')}-${String(p1).padStart(2, '0')}`;
-            } else if (p2 > 12) { // Format: MM/DD/YYYY
+            } else if (p2 > 12) {
               return `${p3}-${String(p1).padStart(2, '0')}-${String(p2).padStart(2, '0')}`;
-            } else { // Ambiguous (both <= 12), assume DD/MM/YYYY
+            } else {
               return `${p3}-${String(p2).padStart(2, '0')}-${String(p1).padStart(2, '0')}`;
             }
           }
@@ -238,13 +261,10 @@ const SalesCardManagementPage: React.FC = () => {
 
         const cleanPhone = (p: any) => String(p || '').replace(/\D/g, '');
 
-        // --- FORCE IMPORT LOGIC ---
-
-        // Prep work: Create placeholder customers & services for unrecognized ones
-        const toUpsertCustomers: Partial<KhachHang>[] = [];
+        const toUpsertCustomersLoc: Partial<KhachHang>[] = [];
         const seenCustKeys = new Set<string>();
 
-        const toUpsertServices: Partial<DichVu>[] = [];
+        const toUpsertServicesLoc: Partial<DichVu>[] = [];
         const seenServiceKeys = new Set<string>();
 
         data.forEach(row => {
@@ -272,7 +292,7 @@ const SalesCardManagementPage: React.FC = () => {
             const key = `${tenKhach}-${sdtKhach}-${rawCustId}`;
             if (!seenCustKeys.has(key)) {
               seenCustKeys.add(key);
-              toUpsertCustomers.push({
+              toUpsertCustomersLoc.push({
                 ho_va_ten: tenKhach || `Khách hàng ${rawCustId || 'mới'}`,
                 so_dien_thoai: sdtKhach || '',
                 ma_khach_hang: rawCustId || undefined,
@@ -287,7 +307,7 @@ const SalesCardManagementPage: React.FC = () => {
           if (!sExists && tenDichVu) {
             if (!seenServiceKeys.has(tenDichVu.toLowerCase())) {
               seenServiceKeys.add(tenDichVu.toLowerCase());
-              toUpsertServices.push({
+              toUpsertServicesLoc.push({
                 ten_dich_vu: tenDichVu,
                 gia_nhap: 0,
                 gia_ban: 0,
@@ -297,14 +317,13 @@ const SalesCardManagementPage: React.FC = () => {
           }
         });
 
-        if (toUpsertCustomers.length > 0) {
-          await bulkUpsertCustomers(toUpsertCustomers);
+        if (toUpsertCustomersLoc.length > 0) {
+          await bulkUpsertCustomers(toUpsertCustomersLoc);
         }
-        if (toUpsertServices.length > 0) {
-          await bulkUpsertServices(toUpsertServices);
+        if (toUpsertServicesLoc.length > 0) {
+          await bulkUpsertServices(toUpsertServicesLoc);
         }
 
-        // Re-fetch everything to get the new IDs
         const [updatedCustomers, updatedPersonnel, updatedServices] = await Promise.all([
           getCustomers(),
           getPersonnel(),
@@ -338,7 +357,6 @@ const SalesCardManagementPage: React.FC = () => {
           const tenDichVu = String(getValue(['dịch vụ sử dụng', 'dịch vụ', 'tên dịch vụ', 'service', 'sản phẩm', 'loại', 'hạng mục']) || '').trim();
           const serviceMatch = updatedServices.find(s => s.ten_dich_vu.toLowerCase() === tenDichVu.toLowerCase());
 
-          // FALLBACKS for FORCE IMPORT
           let ngay = formatExcelDate(getValue(['ngày', 'ngày lập', 'ngay', 'date', 'thời gian']));
           if (!ngay) ngay = new Date().toISOString().split('T')[0];
 
@@ -370,7 +388,7 @@ const SalesCardManagementPage: React.FC = () => {
           setLoading(true);
           await bulkUpsertSalesCards(formattedData);
           await loadData();
-          alert(`🚀 THÀNH CÔNG: Đã nhập ${formattedData.length} phiếu bán hàng.\n\nĐã tự động tạo ${(toUpsertCustomers.length)} khách hàng mới từ danh sách.`);
+          alert(`🚀 THÀNH CÔNG: Đã nhập ${formattedData.length} phiếu bán hàng.`);
         } else {
           alert(`❌ Không tìm thấy dữ liệu hợp lệ trong file Excel.`);
         }
@@ -420,7 +438,10 @@ const SalesCardManagementPage: React.FC = () => {
               </div>
               <input
                 value={searchQuery}
-                onChange={(e) => startTransition(() => setSearchQuery(e.target.value))}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
                 className="w-full pl-9 pr-4 py-1.5 border border-border rounded text-[13px] focus:ring-1 focus:ring-primary placeholder-slate-400 outline-none"
                 placeholder="Tìm khách hàng, SĐT, dịch vụ..."
                 type="text"
@@ -480,6 +501,7 @@ const SalesCardManagementPage: React.FC = () => {
                   <th className="px-4 py-3 font-semibold">Dịch vụ</th>
                   <th className="px-4 py-3 font-semibold">Đánh giá</th>
                   <th className="px-4 py-3 font-semibold text-right">Số Km</th>
+                  <th className="px-4 py-3 font-semibold text-right text-primary">Tổng chi phí dịch vụ</th>
                   <th className="px-4 py-3 font-semibold text-center">Nhắc thay dầu</th>
                   <th className="px-4 py-3 text-center font-semibold">Tác vụ</th>
                 </tr>
@@ -487,7 +509,7 @@ const SalesCardManagementPage: React.FC = () => {
               <tbody className="divide-y divide-slate-100 text-[13px]">
                 {loading ? (
                   <tr>
-                    <td colSpan={9} className="px-4 py-12 text-center text-muted-foreground">
+                    <td colSpan={11} className="px-4 py-12 text-center text-muted-foreground">
                       <Loader2 className="animate-spin inline-block mr-2" size={20} />
                       Đang tải dữ liệu phiếu bán hàng...
                     </td>
@@ -535,6 +557,11 @@ const SalesCardManagementPage: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-4 py-4 text-right font-mono font-bold text-foreground">{card.so_km?.toLocaleString()} km</td>
+                    <td className="px-4 py-4 text-right font-black text-primary">
+                      {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(
+                        ((card as any).the_ban_hang_ct || []).reduce((sum: number, ct: any) => sum + (ct.gia_ban * (ct.so_luong || 1)), 0)
+                      )}
+                    </td>
                     <td className="px-4 py-4 text-center">
                       {card.ngay_nhac_thay_dau ? (
                         <div className="flex items-center justify-center gap-1.5 text-rose-600 font-bold">
@@ -553,7 +580,21 @@ const SalesCardManagementPage: React.FC = () => {
                 ))}
                 {!loading && displayItems.length === 0 && (
                   <tr>
-                    <td colSpan={10} className="px-4 py-8 text-center text-muted-foreground">Chưa có phiếu bán hàng nào được lập.</td>
+                    <td colSpan={11} className="px-4 py-8 text-center text-muted-foreground">Chưa có phiếu bán hàng nào được lập.</td>
+                  </tr>
+                )}
+                {!loading && displayItems.length > 0 && (
+                  <tr className="bg-primary/5 font-black border-t-2 border-primary/20">
+                    <td colSpan={8} className="px-4 py-4 text-right text-muted-foreground uppercase text-[11px] tracking-widest">Tổng cộng trang này:</td>
+                    <td className="px-4 py-4 text-right text-primary text-lg">
+                      {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(
+                        displayItems.reduce((grandSum, card) => {
+                          const items = (card as any).the_ban_hang_ct || [];
+                          return grandSum + items.reduce((sum: number, ct: any) => sum + (ct.gia_ban * (ct.so_luong || 1)), 0);
+                        }, 0)
+                      )}
+                    </td>
+                    <td colSpan={2}></td>
                   </tr>
                 )}
               </tbody>
@@ -588,7 +629,6 @@ const SalesCardManagementPage: React.FC = () => {
   );
 };
 
-// Helper for dynamic classes
 const clsx = (...classes: any[]) => classes.filter(Boolean).join(' ');
 
 export default SalesCardManagementPage;

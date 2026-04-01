@@ -77,6 +77,51 @@ export const deleteAllInventoryRecords = async (): Promise<void> => {
   }
 };
 
+export interface InventoryFilters {
+  loai_phieu?: string[];
+  co_so?: string[];
+}
+
+export const getInventoryPaginated = async (
+  page: number,
+  pageSize: number,
+  searchQuery?: string,
+  filters?: InventoryFilters
+): Promise<{ data: InventoryRecord[], totalCount: number }> => {
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  let query = supabase
+    .from('nhap_xuat_kho')
+    .select('*', { count: 'exact' });
+
+  if (searchQuery) {
+    query = query.or(`ten_mat_hang.ilike.%${searchQuery}%,id_don_hang.ilike.%${searchQuery}%,nguoi_thuc_hien.ilike.%${searchQuery}%`);
+  }
+
+  if (filters?.loai_phieu?.length) {
+    query = query.in('loai_phieu', filters.loai_phieu);
+  }
+
+  if (filters?.co_so?.length) {
+    query = query.in('co_so', filters.co_so);
+  }
+
+  const { data, count, error } = await query
+    .order('created_at', { ascending: false })
+    .range(from, to);
+
+  if (error) {
+    console.error('Error fetching paginated inventory:', error);
+    throw error;
+  }
+
+  return {
+    data: (data as InventoryRecord[]) || [],
+    totalCount: count || 0
+  };
+};
+
 /* 
 SQL TO RUN IN SUPABASE SQL EDITOR:
 

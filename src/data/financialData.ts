@@ -99,3 +99,77 @@ export const deleteAllTransactions = async (): Promise<void> => {
     throw error;
   }
 };
+
+export interface TransactionFilters {
+  branches?: string[];
+  types?: string[];
+}
+
+export const getTransactionsPaginated = async (
+  page: number,
+  pageSize: number,
+  searchQuery?: string,
+  filters?: TransactionFilters
+): Promise<{ data: ThuChi[], totalCount: number }> => {
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  let query = supabase
+    .from('thu_chi')
+    .select('*', { count: 'exact' });
+
+  if (searchQuery) {
+    query = query.or(`danh_muc.ilike.%${searchQuery}%,ghi_chu.ilike.%${searchQuery}%,id_don.ilike.%${searchQuery}%,id_khach_hang.ilike.%${searchQuery}%,so_tien::text.ilike.%${searchQuery}%`);
+  }
+
+  if (filters?.branches?.length) {
+    query = query.in('co_so', filters.branches);
+  }
+
+  if (filters?.types?.length) {
+    query = query.in('loai_phieu', filters.types);
+  }
+
+  const { data, count, error } = await query
+    .order('ngay', { ascending: false })
+    .order('gio', { ascending: false })
+    .range(from, to);
+
+  if (error) {
+    console.error('Error fetching paginated transactions:', error);
+    throw error;
+  }
+
+  return {
+    data: (data as ThuChi[]) || [],
+    totalCount: count || 0
+  };
+};
+
+export const getTransactionStats = async (): Promise<{ income: number, expense: number, balance: number }> => {
+  const { data: incomeData, error: incomeError } = await supabase
+    .from('thu_chi')
+    .select('so_tien')
+    .eq('loai_phieu', 'phiếu thu')
+    .eq('trang_thai', 'Hoàn thành');
+
+  const { data: expenseData, error: expenseError } = await supabase
+    .from('thu_chi')
+    .select('so_tien')
+    .eq('loai_phieu', 'phiếu chi')
+    .eq('trang_thai', 'Hoàn thành');
+
+  if (incomeError || expenseError) {
+    console.error('Error fetching stats:', incomeError || expenseError);
+    return { income: 0, expense: 0, balance: 0 };
+  }
+
+  const income = (incomeData || []).reduce((sum, item) => sum + Number(item.so_tien), 0);
+  const expense = (expenseData || []).reduce((sum, item) => sum + Number(item.so_tien), 0);
+  
+  return {
+    income,
+    expense,
+    balance: income - expense
+  };
+};
