@@ -18,11 +18,11 @@ import {
   User,
   X
 } from 'lucide-react';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import type { AttendanceRecord } from '../data/attendanceData';
-import { bulkUpsertAttendanceRecords, deleteAttendanceRecord, getAttendanceRecords, upsertAttendanceRecord, getAttendancePaginated, type AttendanceFilters } from '../data/attendanceData';
+import { bulkUpsertAttendanceRecords, deleteAttendanceRecord, upsertAttendanceRecord, getAttendancePaginated } from '../data/attendanceData';
 import { getPersonnel, type NhanSu } from '../data/personnelData';
 import { createPortal } from 'react-dom';
 import Pagination from '../components/Pagination';
