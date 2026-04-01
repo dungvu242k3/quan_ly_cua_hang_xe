@@ -20,6 +20,7 @@ export const sidebarMenu: SidebarItem[] = [
   { icon: Wallet, label: 'Thu chi', path: '/thu-chi' },
   { icon: Wrench, label: 'Dịch vụ', path: '/dich-vu' },
   { icon: Users, label: 'Nhân sự', path: '/nhan-su' },
+  { icon: Wallet, label: 'Tiền lương', path: '/tien-luong' },
   { icon: Box, label: 'Kho vận', path: '/kho-van' }
 ];
 

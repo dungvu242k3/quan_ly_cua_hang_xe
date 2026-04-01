@@ -5,7 +5,10 @@ import {
   Users,
   FileText,
   Wallet,
-  Wrench
+  Wrench,
+  BadgeDollarSign,
+  Settings2,
+  Braces
 } from 'lucide-react';
 import type { ModuleCardProps } from '../components/ui/ModuleCard';
 
@@ -43,6 +46,17 @@ export const moduleData: Record<string, { section: string; items: ModuleCardProp
       items: [
         { icon: Users, title: 'Nhân sự', description: 'Quản lý danh sách nhân viên, vị trí và cơ sở làm việc.', colorScheme: 'emerald', path: '/nhan-su/ung-vien' },
         { icon: ClipboardList, title: 'Bảng chấm công', description: 'Xem và tổng hợp dữ liệu chấm công theo tháng.', colorScheme: 'orange', path: '/nhan-su/bang-cham-cong' }
+      ]
+    }
+  ],
+  '/tien-luong': [
+    {
+      section: 'Quản lý tiền lương',
+      items: [
+        { icon: BadgeDollarSign, title: 'Bảng lương', description: 'Tính toán và quản lý bảng thanh toán lương hàng tháng.', colorScheme: 'emerald', path: '/tien-luong/bang-luong' },
+        { icon: Settings2, title: 'Thông số mặc định', description: 'Cấu hình lương cơ sở, mức đóng bảo hiểm và thuế.', colorScheme: 'blue', path: '/tien-luong/thong-so' },
+        { icon: Braces, title: 'Thành phần lương', description: 'Định nghĩa các khoản thu nhập và khấu trừ tùy chỉnh.', colorScheme: 'purple', path: '/tien-luong/thanh-phan' },
+        { icon: Wallet, title: 'Chính sách phụ cấp', description: 'Gán mức phụ cấp linh hoạt theo từng vị trí công việc.', colorScheme: 'orange', path: '/tien-luong/chinh-sach' }
       ]
     }
   ],

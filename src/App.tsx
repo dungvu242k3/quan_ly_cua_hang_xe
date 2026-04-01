@@ -11,6 +11,10 @@ import ServiceManagementPage from './pages/ServiceManagementPage';
 import SalesCardManagementPage from './pages/SalesCardManagementPage';
 import SalesCardCTManagementPage from './pages/SalesCardCTManagementPage';
 import ModulePage from './pages/ModulePage';
+import PayrollPage from './pages/PayrollPage';
+import PayrollSettingsPage from './pages/PayrollSettingsPage';
+import SalaryComponentPage from './pages/SalaryComponentPage';
+import AllowancePolicyPage from './pages/AllowancePolicyPage';
 
 function App() {
   return (
@@ -30,6 +34,11 @@ function App() {
           <Route path="/nhan-su/bang-cham-cong" element={<AttendanceManagementPage />} />
           <Route path="/kho-van" element={<ModulePage />} />
           <Route path="/kho-van/xuat-nhap-kho" element={<InventoryManagementPage />} />
+          <Route path="/tien-luong" element={<ModulePage />} />
+          <Route path="/tien-luong/bang-luong" element={<PayrollPage />} />
+          <Route path="/tien-luong/thong-so" element={<PayrollSettingsPage />} />
+          <Route path="/tien-luong/thanh-phan" element={<SalaryComponentPage />} />
+          <Route path="/tien-luong/chinh-sach" element={<AllowancePolicyPage />} />
 
           {/* Fallback route */}
           <Route path="*" element={<Navigate to="/" replace />} />

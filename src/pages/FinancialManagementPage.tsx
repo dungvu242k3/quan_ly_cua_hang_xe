@@ -7,6 +7,7 @@ import * as XLSX from 'xlsx';
 import { useLocation } from 'react-router-dom';
 import { clsx } from 'clsx';
 import { 
+  getTransactions,
   getTransactionsPaginated, 
   getTransactionStats,
   deleteTransaction, 
@@ -17,12 +18,15 @@ import {
 import type { ThuChi } from '../data/financialData';
 import Pagination from '../components/Pagination';
 import FinancialFormModal from '../components/FinancialFormModal';
+import FinancialCharts from '../components/FinancialCharts';
 
 const FinancialManagementPage: React.FC = () => {
   const location = useLocation();
   const [transactions, setTransactions] = useState<ThuChi[]>([]);
   const [stats, setStats] = useState({ income: 0, expense: 0, balance: 0 });
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'list' | 'charts'>('list');
+  const [allTransactions, setAllTransactions] = useState<ThuChi[]>([]);
   
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -78,6 +82,24 @@ const FinancialManagementPage: React.FC = () => {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  const loadAllData = async () => {
+    try {
+      setLoading(true);
+      const data = await getTransactions();
+      setAllTransactions(data);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'charts') {
+      loadAllData();
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -295,225 +317,263 @@ const FinancialManagementPage: React.FC = () => {
           </h1>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <StatCard title="Tổng Thu" amount={stats.income} color="text-emerald-600" bgColor="bg-emerald-50/50" icon={BadgeDollarSign} />
-          <StatCard title="Tổng Chi" amount={stats.expense} color="text-rose-600" bgColor="bg-rose-50/50" icon={Wallet} />
-          <StatCard title="Số dư hiện tại" amount={stats.balance} color="text-amber-600" bgColor="bg-amber-50/50" icon={Wallet} />
+        {/* Tab Switcher */}
+        <div className="bg-card rounded-xl shadow-sm border border-border p-1.5 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 transition-all duration-300 max-w-fit">
+          <div className="flex bg-muted/50 rounded-lg p-0.5 shrink-0">
+            <button
+              onClick={() => setActiveTab('list')}
+              className={clsx(
+                "px-6 py-1.5 rounded-md text-[13px] font-bold transition-all duration-200",
+                activeTab === 'list'
+                  ? "bg-white text-primary shadow-sm ring-1 ring-black/5"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Danh sách
+            </button>
+            <button
+              onClick={() => setActiveTab('charts')}
+              className={clsx(
+                "px-6 py-1.5 rounded-md text-[13px] font-bold transition-all duration-200",
+                activeTab === 'charts'
+                  ? "bg-white text-primary shadow-sm ring-1 ring-black/5"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Biểu đồ
+            </button>
+          </div>
         </div>
 
-        {/* Toolbar */}
-        <div className="bg-card p-3 rounded-lg border border-border shadow-sm flex flex-wrap items-center justify-between gap-4" ref={dropdownRef}>
-          <div className="flex items-center gap-3 flex-1 flex-wrap">
-            <div className="relative w-full sm:w-[250px]">
-              <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60">
-                <Search size={18} />
+        {/* Stats Cards - Only on List Tab */}
+        {activeTab === 'list' && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <StatCard title="Tổng Thu" amount={stats.income} color="text-emerald-600" bgColor="bg-emerald-50/50" icon={BadgeDollarSign} />
+            <StatCard title="Tổng Chi" amount={stats.expense} color="text-rose-600" bgColor="bg-rose-50/50" icon={Wallet} />
+            <StatCard title="Số dư hiện tại" amount={stats.balance} color="text-amber-600" bgColor="bg-amber-50/50" icon={Wallet} />
+          </div>
+        )}
+
+        {activeTab === 'list' ? (
+          <>
+            {/* Toolbar */}
+            <div className="bg-card p-3 rounded-lg border border-border shadow-sm flex flex-wrap items-center justify-between gap-4" ref={dropdownRef}>
+              <div className="flex items-center gap-3 flex-1 flex-wrap">
+                <div className="relative w-full sm:w-[250px]">
+                  <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60">
+                    <Search size={18} />
+                  </div>
+                  <input 
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setCurrentPage(1); // Reset to page 1 on search
+                    }}
+                    className="w-full pl-9 pr-4 py-1.5 border border-border rounded text-[13px] focus:ring-1 focus:ring-primary focus:border-primary placeholder-slate-400 outline-none" 
+                    placeholder="Tìm giao dịch..." 
+                    type="text"
+                  />
+                </div>
+                
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Branch Dropdown */}
+                  <div className="relative">
+                    <button onClick={() => toggleDropdown('branch')} className="flex items-center gap-2 px-3 py-1.5 border border-border rounded text-[13px] text-muted-foreground min-w-[140px] justify-between bg-card hover:bg-accent">
+                      <div className="flex items-center gap-2"><Building2 size={18} />Cơ sở</div>
+                      <ChevronDown size={18} />
+                    </button>
+                    {openDropdown === 'branch' && (
+                      <div className="absolute top-10 left-0 z-50 min-w-[200px] bg-card border border-border rounded shadow-lg overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+                        <ul className="py-1 text-[13px] text-muted-foreground">
+                          {branchOptions.map(branch => (
+                            <li key={branch} className="px-3 py-2 hover:bg-accent cursor-pointer flex items-center gap-2" onClick={() => handleFilterChange(setSelectedBranches, branch)}>
+                              <input 
+                                type="checkbox" 
+                                checked={selectedBranches.includes(branch)}
+                                readOnly
+                                className="rounded border-border text-primary size-4"
+                              /> {branch}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Type Dropdown */}
+                  <div className="relative">
+                    <button onClick={() => toggleDropdown('type')} className="flex items-center gap-2 px-3 py-1.5 border border-border rounded text-[13px] text-muted-foreground min-w-[120px] justify-between bg-card hover:bg-accent">
+                      <div className="flex items-center gap-2"><Wallet size={18} />Loại phiếu</div>
+                      <ChevronDown size={18} />
+                    </button>
+                    {openDropdown === 'type' && (
+                      <div className="absolute top-10 left-0 z-50 min-w-[160px] bg-card border border-border rounded shadow-lg overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+                        <ul className="py-1 text-[13px] text-muted-foreground">
+                          {typeOptions.map(opt => (
+                            <li key={opt} className="px-3 py-2 hover:bg-accent cursor-pointer flex items-center gap-2" onClick={() => handleFilterChange(setSelectedTypes, opt)}>
+                              <input 
+                                type="checkbox" 
+                                checked={selectedTypes.includes(opt)}
+                                readOnly
+                                className="rounded border-border text-primary size-4"
+                              /> {opt.toUpperCase()}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-              <input 
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setCurrentPage(1); // Reset to page 1 on search
-                }}
-                className="w-full pl-9 pr-4 py-1.5 border border-border rounded text-[13px] focus:ring-1 focus:ring-primary focus:border-primary placeholder-slate-400 outline-none" 
-                placeholder="Tìm giao dịch..." 
-                type="text"
+
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={handleDownloadTemplate}
+                    className="flex items-center gap-2 px-3 py-1.5 border border-border rounded text-[13px] text-muted-foreground hover:bg-accent transition-colors font-medium bg-card"
+                    title="Tải mẫu Excel"
+                  >
+                    <Download size={18} />
+                    <span>Tải mẫu</span>
+                  </button>
+                  <div className="relative">
+                    <button 
+                      onClick={() => document.getElementById('excel-import')?.click()}
+                      className="flex items-center gap-2 px-3 py-1.5 border border-border rounded text-[13px] text-muted-foreground hover:bg-accent transition-colors font-medium bg-card"
+                      title="Nhập thu chi từ Excel"
+                    >
+                      <Upload size={18} />
+                      <span>Nhập Excel</span>
+                    </button>
+                    <input 
+                      id="excel-import"
+                      type="file" 
+                      accept=".xlsx, .xls" 
+                      className="hidden" 
+                      onChange={handleImportExcel} 
+                    />
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleDeleteAll}
+                  className="px-3 py-1.5 border border-red-200 rounded text-[13px] text-red-600 hover:bg-red-50 transition-colors font-medium bg-white flex items-center gap-2"
+                  title="Xóa toàn bộ dữ liệu"
+                >
+                  <Trash2 size={18} />
+                  <span>Xóa tất cả</span>
+                </button>
+
+                <button 
+                  onClick={() => handleOpenModal()}
+                  className="bg-primary hover:bg-primary/90 text-white px-5 py-1.5 rounded flex items-center gap-2 text-[14px] font-semibold transition-colors"
+                >
+                  <Plus size={20} /> Ghi nhận phiếu mới
+                </button>
+              </div>
+            </div>
+
+            {/* Data Table */}
+            <div className="bg-card rounded-lg border border-border shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-muted border-b border-border text-muted-foreground text-[12px] font-bold uppercase tracking-wider">
+                      <th className="px-4 py-3 font-semibold">Ảnh</th>
+                      <th className="px-4 py-3 font-semibold text-center">Ngày</th>
+                      <th className="px-4 py-3 font-semibold">ID</th>
+                      <th className="px-4 py-3 font-semibold text-center">Giờ</th>
+                      <th className="px-4 py-3 font-semibold">Loại</th>
+                      <th className="px-4 py-3 font-semibold">Danh mục</th>
+                      <th className="px-4 py-3 font-semibold">ID Đơn</th>
+                      <th className="px-4 py-3 font-semibold">Khách hàng</th>
+                      <th className="px-4 py-3 font-semibold text-right">Số tiền</th>
+                      <th className="px-4 py-3 font-semibold">Cơ sở</th>
+                      <th className="px-4 py-3 font-semibold">Trạng thái</th>
+                      <th className="px-4 py-3 text-center font-semibold">Tác vụ</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-[13px]">
+                    {loading ? (
+                      <tr>
+                        <td colSpan={8} className="px-4 py-12 text-center text-muted-foreground">
+                          <Loader2 className="animate-spin inline-block mr-2" size={20} />
+                          Đang tải dữ liệu...
+                        </td>
+                      </tr>
+                    ) : transactions.map(transaction => (
+                      <tr key={transaction.id} className="hover:bg-muted/80 transition-colors">
+                        <td className="px-4 py-4">
+                          {transaction.anh ? (
+                            <div className="w-10 h-10 rounded-lg overflow-hidden border border-border">
+                              <img src={transaction.anh} alt="" className="w-full h-full object-cover" />
+                            </div>
+                          ) : (
+                            <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center text-muted-foreground/30"><Camera size={18} /></div>
+                          )}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-center font-medium text-foreground">
+                          {new Date(transaction.ngay).toLocaleDateString('vi-VN')}
+                        </td>
+                        <td className="px-4 py-4 font-mono text-[10px] text-muted-foreground max-w-[80px] truncate" title={transaction.id}>
+                          {transaction.id}
+                        </td>
+                        <td className="px-4 py-4 text-center text-muted-foreground">{transaction.gio}</td>
+                        <td className="px-4 py-4">
+                          <span className={clsx(
+                            "px-2 py-0.5 rounded text-[10px] font-bold uppercase border",
+                            transaction.loai_phieu === 'phiếu thu' ? "bg-green-50 text-green-700 border-green-100" : "bg-red-50 text-red-700 border-red-100"
+                          )}>
+                            {transaction.loai_phieu === 'phiếu thu' ? 'THU' : 'CHI'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 text-foreground font-medium">{transaction.danh_muc || '—'}</td>
+                        <td className="px-4 py-4 font-mono text-[12px]">{transaction.id_don || '—'}</td>
+                        <td className="px-4 py-4">{transaction.id_khach_hang || '—'}</td>
+                        <td className="px-4 py-4 text-right font-black text-foreground">
+                          {formatCurrency(transaction.so_tien)}
+                        </td>
+                        <td className="px-4 py-4 text-[12px]">{transaction.co_so}</td>
+                        <td className="px-4 py-4">
+                          <span className={clsx(
+                            "px-2 py-0.5 rounded text-[11px] font-medium",
+                            transaction.trang_thai === 'Hoàn thành' ? "bg-emerald-100 text-emerald-700" : 
+                            transaction.trang_thai === 'Đang chờ' ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"
+                          )}>
+                            {transaction.trang_thai}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 text-center">
+                          <div className="flex items-center justify-center gap-2">
+                            <button onClick={() => handleOpenModal(transaction)} className="p-1.5 text-primary hover:bg-primary/10 rounded transition-colors"><Edit2 size={15} /></button>
+                            <button onClick={() => handleDelete(transaction.id)} className="p-1.5 text-destructive hover:bg-destructive/10 rounded transition-colors"><Trash2 size={15} /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {!loading && transactions.length === 0 && (
+                      <tr>
+                        <td colSpan={12} className="px-4 py-8 text-center text-muted-foreground">Không có dữ liệu giao dịch.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <Pagination 
+                currentPage={currentPage}
+                pageSize={pageSize}
+                totalCount={totalCount}
+                onPageChange={setCurrentPage}
+                onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+                loading={loading}
               />
             </div>
-            
-            <div className="flex flex-wrap items-center gap-2">
-              {/* Branch Dropdown */}
-              <div className="relative">
-                <button onClick={() => toggleDropdown('branch')} className="flex items-center gap-2 px-3 py-1.5 border border-border rounded text-[13px] text-muted-foreground min-w-[140px] justify-between bg-card hover:bg-accent">
-                  <div className="flex items-center gap-2"><Building2 size={18} />Cơ sở</div>
-                  <ChevronDown size={18} />
-                </button>
-                {openDropdown === 'branch' && (
-                  <div className="absolute top-10 left-0 z-50 min-w-[200px] bg-card border border-border rounded shadow-lg overflow-hidden animate-in fade-in zoom-in-95 duration-100">
-                    <ul className="py-1 text-[13px] text-muted-foreground">
-                      {branchOptions.map(branch => (
-                        <li key={branch} className="px-3 py-2 hover:bg-accent cursor-pointer flex items-center gap-2" onClick={() => handleFilterChange(setSelectedBranches, branch)}>
-                          <input 
-                            type="checkbox" 
-                            checked={selectedBranches.includes(branch)}
-                            readOnly
-                            className="rounded border-border text-primary size-4"
-                          /> {branch}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-
-              {/* Type Dropdown */}
-              <div className="relative">
-                <button onClick={() => toggleDropdown('type')} className="flex items-center gap-2 px-3 py-1.5 border border-border rounded text-[13px] text-muted-foreground min-w-[120px] justify-between bg-card hover:bg-accent">
-                  <div className="flex items-center gap-2"><Wallet size={18} />Loại phiếu</div>
-                  <ChevronDown size={18} />
-                </button>
-                {openDropdown === 'type' && (
-                  <div className="absolute top-10 left-0 z-50 min-w-[160px] bg-card border border-border rounded shadow-lg overflow-hidden animate-in fade-in zoom-in-95 duration-100">
-                    <ul className="py-1 text-[13px] text-muted-foreground">
-                      {typeOptions.map(opt => (
-                        <li key={opt} className="px-3 py-2 hover:bg-accent cursor-pointer flex items-center gap-2" onClick={() => handleFilterChange(setSelectedTypes, opt)}>
-                          <input 
-                            type="checkbox" 
-                            checked={selectedTypes.includes(opt)}
-                            readOnly
-                            className="rounded border-border text-primary size-4"
-                          /> {opt.toUpperCase()}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            </div>
+          </>
+        ) : (
+          <div className="w-full">
+             <FinancialCharts transactions={allTransactions} />
           </div>
-
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <button 
-                onClick={handleDownloadTemplate}
-                className="flex items-center gap-2 px-3 py-1.5 border border-border rounded text-[13px] text-muted-foreground hover:bg-accent transition-colors font-medium bg-card"
-                title="Tải mẫu Excel"
-              >
-                <Download size={18} />
-                <span>Tải mẫu</span>
-              </button>
-              <div className="relative">
-                <button 
-                  onClick={() => document.getElementById('excel-import')?.click()}
-                  className="flex items-center gap-2 px-3 py-1.5 border border-border rounded text-[13px] text-muted-foreground hover:bg-accent transition-colors font-medium bg-card"
-                  title="Nhập thu chi từ Excel"
-                >
-                  <Upload size={18} />
-                  <span>Nhập Excel</span>
-                </button>
-                <input 
-                  id="excel-import"
-                  type="file" 
-                  accept=".xlsx, .xls" 
-                  className="hidden" 
-                  onChange={handleImportExcel} 
-                />
-              </div>
-            </div>
-
-            <button
-              onClick={handleDeleteAll}
-              className="px-3 py-1.5 border border-red-200 rounded text-[13px] text-red-600 hover:bg-red-50 transition-colors font-medium bg-white flex items-center gap-2"
-              title="Xóa toàn bộ dữ liệu"
-            >
-              <Trash2 size={18} />
-              <span>Xóa tất cả</span>
-            </button>
-
-            <button 
-              onClick={() => handleOpenModal()}
-              className="bg-primary hover:bg-primary/90 text-white px-5 py-1.5 rounded flex items-center gap-2 text-[14px] font-semibold transition-colors"
-            >
-              <Plus size={20} /> Ghi nhận phiếu mới
-            </button>
-          </div>
-        </div>
-
-        {/* Data Table */}
-        <div className="bg-card rounded-lg border border-border shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-muted border-b border-border text-muted-foreground text-[12px] font-bold uppercase tracking-wider">
-                  <th className="px-4 py-3 font-semibold">Ảnh</th>
-                  <th className="px-4 py-3 font-semibold text-center">Ngày</th>
-                  <th className="px-4 py-3 font-semibold">ID</th>
-                  <th className="px-4 py-3 font-semibold text-center">Giờ</th>
-                  <th className="px-4 py-3 font-semibold">Loại</th>
-                  <th className="px-4 py-3 font-semibold">Danh mục</th>
-                  <th className="px-4 py-3 font-semibold">ID Đơn</th>
-                  <th className="px-4 py-3 font-semibold">Khách hàng</th>
-                  <th className="px-4 py-3 font-semibold text-right">Số tiền</th>
-                  <th className="px-4 py-3 font-semibold">Cơ sở</th>
-                  <th className="px-4 py-3 font-semibold">Trạng thái</th>
-                  <th className="px-4 py-3 text-center font-semibold">Tác vụ</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-[13px]">
-                {loading ? (
-                   <tr>
-                     <td colSpan={8} className="px-4 py-12 text-center text-muted-foreground">
-                       <Loader2 className="animate-spin inline-block mr-2" size={20} />
-                       Đang tải dữ liệu...
-                     </td>
-                   </tr>
-                ) : transactions.map(transaction => (
-                  <tr key={transaction.id} className="hover:bg-muted/80 transition-colors">
-                    <td className="px-4 py-4">
-                      {transaction.anh ? (
-                        <div className="w-10 h-10 rounded-lg overflow-hidden border border-border">
-                          <img src={transaction.anh} alt="" className="w-full h-full object-cover" />
-                        </div>
-                      ) : (
-                        <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center text-muted-foreground/30"><Camera size={18} /></div>
-                      )}
-                    </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-center font-medium text-foreground">
-                      {new Date(transaction.ngay).toLocaleDateString('vi-VN')}
-                    </td>
-                    <td className="px-4 py-4 font-mono text-[10px] text-muted-foreground max-w-[80px] truncate" title={transaction.id}>
-                      {transaction.id}
-                    </td>
-                    <td className="px-4 py-4 text-center text-muted-foreground">{transaction.gio}</td>
-                    <td className="px-4 py-4">
-                      <span className={clsx(
-                        "px-2 py-0.5 rounded text-[10px] font-bold uppercase border",
-                        transaction.loai_phieu === 'phiếu thu' ? "bg-green-50 text-green-700 border-green-100" : "bg-red-50 text-red-700 border-red-100"
-                      )}>
-                        {transaction.loai_phieu === 'phiếu thu' ? 'THU' : 'CHI'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4 text-foreground font-medium">{transaction.danh_muc || '—'}</td>
-                    <td className="px-4 py-4 font-mono text-[12px]">{transaction.id_don || '—'}</td>
-                    <td className="px-4 py-4">{transaction.id_khach_hang || '—'}</td>
-                    <td className="px-4 py-4 text-right font-black text-foreground">
-                      {formatCurrency(transaction.so_tien)}
-                    </td>
-                    <td className="px-4 py-4 text-[12px]">{transaction.co_so}</td>
-                    <td className="px-4 py-4">
-                      <span className={clsx(
-                        "px-2 py-0.5 rounded text-[11px] font-medium",
-                        transaction.trang_thai === 'Hoàn thành' ? "bg-emerald-100 text-emerald-700" : 
-                        transaction.trang_thai === 'Đang chờ' ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"
-                      )}>
-                        {transaction.trang_thai}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <button onClick={() => handleOpenModal(transaction)} className="p-1.5 text-primary hover:bg-primary/10 rounded transition-colors"><Edit2 size={15} /></button>
-                        <button onClick={() => handleDelete(transaction.id)} className="p-1.5 text-destructive hover:bg-destructive/10 rounded transition-colors"><Trash2 size={15} /></button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {!loading && transactions.length === 0 && (
-                  <tr>
-                    <td colSpan={12} className="px-4 py-8 text-center text-muted-foreground">Không có dữ liệu giao dịch.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-          <Pagination 
-            currentPage={currentPage}
-            pageSize={pageSize}
-            totalCount={totalCount}
-            onPageChange={setCurrentPage}
-            onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
-            loading={loading}
-          />
-        </div>
+        )}
       </div>
 
       {isModalOpen && (
