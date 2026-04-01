@@ -5,10 +5,12 @@ import {
   getTaxBrackets
 } from '../data/payrollSettingsData';
 import type { ThongSoLuong, BieuThueTNCN } from '../data/payrollSettingsData';
-import { cn } from '../lib/utils';
-import { formatNumberVietnamese, parseNumberVietnamese } from '../lib/utils';
+import { useNavigate } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
+import { cn, formatNumberVietnamese, parseNumberVietnamese } from '../lib/utils';
 
 const PayrollSettingsPage: React.FC = () => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'luong' | 'thue' | 'bao-hiem'>('luong');
   const [settings, setSettings] = useState<ThongSoLuong[]>([]);
   const [taxBrackets, setTaxBrackets] = useState<BieuThueTNCN[]>([]);
@@ -89,6 +91,16 @@ const PayrollSettingsPage: React.FC = () => {
 
   return (
     <div className="bg-white min-h-screen p-4 sm:p-6 space-y-6 animate-in fade-in duration-500">
+      {/* Header */}
+      <div className="flex items-center gap-4 mb-2">
+        <button onClick={() => navigate(-1)} className="flex items-center gap-1.5 px-4 py-2 border border-gray-200 rounded-xl text-[13px] font-bold text-gray-600 hover:bg-gray-50 transition-all shadow-sm active:scale-95">
+          <ArrowLeft size={18} /> Quay lại
+        </button>
+        <div>
+          <h1 className="text-2xl font-black text-gray-900 tracking-tight">Thông số lương & Thuế</h1>
+        </div>
+      </div>
+
       {/* Minimalist Tabs */}
       <div className="flex items-center gap-8 border-b border-gray-100 mb-6">
         {tabs.map(tab => (

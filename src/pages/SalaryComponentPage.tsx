@@ -8,11 +8,13 @@ import type { ThanhPhanLuong } from '../data/salaryComponentData';
 import SalaryComponentFormModal from '../components/SalaryComponentFormModal';
 import { clsx } from 'clsx';
 import { removeVietnameseTones } from '../lib/utils';
+import { useNavigate } from 'react-router-dom';
 import { 
-  Plus, Search, Edit2, Trash2, Loader2, Braces, Tag, Building2
+  Plus, Search, Edit2, Trash2, Loader2, Braces, Tag, Building2, ArrowLeft
 } from 'lucide-react';
 
 const SalaryComponentPage: React.FC = () => {
+  const navigate = useNavigate();
   const [components, setComponents] = useState<ThanhPhanLuong[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -84,8 +86,11 @@ const SalaryComponentPage: React.FC = () => {
       </div>
 
       {/* Toolbar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1 group">
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-4 items-center">
+        <button onClick={() => navigate(-1)} className="flex items-center gap-1.5 px-5 py-2.5 border border-slate-200 rounded-xl text-[13px] font-black text-slate-600 hover:bg-slate-100 transition-all shadow-sm active:scale-95 whitespace-nowrap">
+          <ArrowLeft size={18} /> Quay lại
+        </button>
+        <div className="relative flex-1 group w-full">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-primary" size={18} />
           <input 
             type="text"

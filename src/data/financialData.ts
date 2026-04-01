@@ -88,6 +88,32 @@ export const uploadTransactionImage = async (file: File): Promise<string> => {
   return data.publicUrl;
 };
 
+export const getTransactionByOrderId = async (orderId: string): Promise<ThuChi | null> => {
+  const { data, error } = await supabase
+    .from('thu_chi')
+    .select('*')
+    .eq('id_don', orderId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Error fetching transaction by order ID:', error);
+    return null;
+  }
+  return data as ThuChi | null;
+};
+
+export const deleteTransactionByOrderId = async (orderId: string): Promise<void> => {
+  const { error } = await supabase
+    .from('thu_chi')
+    .delete()
+    .eq('id_don', orderId);
+
+  if (error) {
+    console.error('Error deleting transaction by order ID:', error);
+    throw error;
+  }
+};
+
 export const deleteAllTransactions = async (): Promise<void> => {
   const { error } = await supabase
     .from('thu_chi')

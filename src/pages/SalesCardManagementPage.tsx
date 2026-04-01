@@ -24,6 +24,8 @@ import type { DichVu } from '../data/serviceData';
 import { bulkUpsertServices, getServices } from '../data/serviceData';
 import SalesCardFormModal from '../components/SalesCardFormModal';
 import { bulkUpsertSalesCardCTs } from '../data/salesCardCTData';
+import { getTransactionByOrderId, upsertTransaction, deleteTransactionByOrderId } from '../data/financialData';
+import type { ThuChi } from '../data/financialData';
 import { useAuth } from '../context/AuthContext';
 
 const SalesCardManagementPage: React.FC = () => {
@@ -164,6 +166,28 @@ const SalesCardManagementPage: React.FC = () => {
         });
         await bulkUpsertSalesCardCTs(detailRecords);
       }
+      
+      // AUTOMATION: Create or Update Finance Record (Phiếu thu)
+      const totalAmount = (formDataHeader.service_items || []).reduce((sum, item) => sum + (item.gia_ban || 0), 0);
+      const existingTx = await getTransactionByOrderId(savedCard.id);
+      
+      const financialRecord: Partial<ThuChi> = {
+        id: existingTx?.id, // If it exists, update it
+        loai_phieu: 'phiếu thu',
+        id_don: savedCard.id,
+        so_tien: totalAmount,
+        ngay: savedCard.ngay,
+        gio: savedCard.gio,
+        co_so: (formDataHeader.service_items && formDataHeader.service_items.length > 0) 
+          ? (services.find(s => s.id === formDataHeader.service_items![0].id)?.co_so || 'Cơ sở chính')
+          : 'Cơ sở chính',
+        id_khach_hang: savedCard.khach_hang_id,
+        danh_muc: 'Doanh thu dịch vụ',
+        trang_thai: 'Hoàn thành',
+        ghi_chu: `Hệ thống tự động: Thu tiền đơn hàng ${savedCard.id.slice(0, 8)}`
+      };
+      
+      await upsertTransaction(financialRecord);
 
       await loadData();
       handleCloseModal();
@@ -413,6 +437,8 @@ const SalesCardManagementPage: React.FC = () => {
     if (window.confirm('Bạn có chắc chắn muốn xóa phiếu này?')) {
       try {
         await deleteSalesCard(id);
+        // Delete linked finance record automatically
+        await deleteTransactionByOrderId(id);
         await loadData();
       } catch (error) {
         alert('Lỗi: Không thể xóa phiếu.');
