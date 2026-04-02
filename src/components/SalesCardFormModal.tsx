@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Calendar, Clock, History, Plus, Save, ShoppingCart, Star, User, Wrench, X } from 'lucide-react';
+import { Calendar, Clock, History, Loader2, Plus, Save, ShoppingCart, Star, User, Wrench, X } from 'lucide-react';
 import type { SalesCard } from '../data/salesCardData';
 import type { KhachHang } from '../data/customerData';
 import type { NhanSu } from '../data/personnelData';
@@ -21,23 +21,24 @@ const InputField: React.FC<{
   type?: 'text' | 'date' | 'time' | 'select',
   options?: string[],
   required?: boolean,
-  placeholder?: string
-}> = ({ label, name, value, onChange, icon: Icon, type = 'text', options, required, placeholder }) => (
+  placeholder?: string,
+  disabled?: boolean
+}> = ({ label, name, value, onChange, icon: Icon, type = 'text', options, required, placeholder, disabled }) => (
   <div className="space-y-1.5">
     <label className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
       <Icon size={14} className="text-primary/70" />
       {label} {required && <span className="text-red-500">*</span>}
     </label>
     {type === 'select' ? (
-      <select name={name} value={value ?? ''} onChange={onChange} required={required} className="w-full px-4 py-2.5 bg-background border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/20 text-[14px]">
+      <select name={name} value={value ?? ''} onChange={onChange} required={required} disabled={disabled} className={clsx("w-full px-4 py-2.5 bg-background border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/20 text-[14px]", disabled && "bg-muted/30 cursor-not-allowed opacity-80")}>
         {options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
       </select>
     ) : (
       <input
         type={type} name={name} value={value ?? ''} onChange={onChange}
         onFocus={(e) => e.target.select()}
-        required={required} placeholder={placeholder}
-        className="w-full px-4 py-2.5 bg-background border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/20 text-[14px]"
+        required={required} placeholder={placeholder} disabled={disabled}
+        className={clsx("w-full px-4 py-2.5 bg-background border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/20 text-[14px]", disabled && "bg-muted/30 cursor-not-allowed opacity-80")}
       />
     )}
   </div>
@@ -53,9 +54,12 @@ const SalesCardFormModal: React.FC<{
   onClose: () => void;
   onSubmit: (data: Partial<SalesCard & { dich_vu_ids?: string[] }>) => Promise<void>;
   onCustomerAdded: () => Promise<void>;
-}> = React.memo(({ isOpen, editingCard, initialData, customers, personnel, services, onClose, onSubmit, onCustomerAdded }) => {
+  onCollectPayment?: (data: any) => Promise<void>;
+  isReadOnly?: boolean;
+}> = React.memo(({ isOpen, editingCard, initialData, customers, personnel, services, onClose, onSubmit, onCustomerAdded, isReadOnly, onCollectPayment }) => {
   const [formData, setFormData] = useState<Partial<SalesCard & { dich_vu_ids?: string[], service_items?: { id: string, ten_dich_vu: string, gia_ban: number }[] }>>(initialData);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
+  const [isCollecting, setIsCollecting] = useState(false);
 
   // Memoize heavy options so dropdowns don't re-render on every keystroke
   const customerOptions = React.useMemo(() => customers.map(c => ({
@@ -131,7 +135,7 @@ const SalesCardFormModal: React.FC<{
         <div className="px-8 py-5 border-b border-border flex items-center justify-between bg-muted/40 shrink-0">
           <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
             <ShoppingCart className="text-primary" size={20} />
-            {editingCard ? 'Cập nhật Phiếu Bán hàng' : 'Lập Phiếu Bán hàng Mới'}
+            {isReadOnly ? 'Chi tiết Phiếu Bán hàng' : editingCard ? 'Cập nhật Phiếu Bán hàng' : 'Lập Phiếu Bán hàng Mới'}
           </h3>
           <button onClick={onClose} className="p-2 rounded-full hover:bg-muted text-muted-foreground transition-colors"><X size={20} /></button>
         </div>
@@ -140,8 +144,8 @@ const SalesCardFormModal: React.FC<{
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Date & Time */}
-              <InputField label="Ngày lập" name="ngay" type="date" value={formData.ngay || ''} onChange={handleInputChange} icon={Calendar} required />
-              <InputField label="Giờ lập" name="gio" type="time" value={formData.gio || ''} onChange={handleInputChange} icon={Clock} required />
+              <InputField label="Ngày lập" name="ngay" type="date" value={formData.ngay || ''} onChange={handleInputChange} icon={Calendar} required disabled={isReadOnly} />
+              <InputField label="Giờ lập" name="gio" type="time" value={formData.gio || ''} onChange={handleInputChange} icon={Clock} required disabled={isReadOnly} />
 
               {/* Customer Selection */}
               <div className="space-y-1.5">
@@ -150,21 +154,23 @@ const SalesCardFormModal: React.FC<{
                     <User size={14} className="text-primary/70" />
                     Khách hàng <span className="text-red-500">*</span>
                   </div>
-                  <button 
-                    type="button"
-                    onClick={() => setIsCustomerModalOpen(true)}
-                    className="text-primary hover:text-primary/80 flex items-center gap-1 normal-case font-bold transition-all px-2 py-0.5 rounded-lg hover:bg-primary/5"
-                  >
-                    <Plus size={14} /> Thêm mới
-                  </button>
+                  {!isReadOnly && (
+                    <button 
+                      type="button"
+                      onClick={() => setIsCustomerModalOpen(true)}
+                      className="text-primary hover:text-primary/80 flex items-center gap-1 normal-case font-bold transition-all px-2 py-0.5 rounded-lg hover:bg-primary/5"
+                    >
+                      <Plus size={14} /> Thêm mới
+                    </button>
+                  )}
                 </label>
                 <SearchableSelect
                   options={customerOptions}
                   value={formData.khach_hang_id || undefined}
-                  onValueChange={(val: string) => setFormData(prev => ({ ...prev, khach_hang_id: val }))}
+                  onValueChange={(val: string) => !isReadOnly && setFormData(prev => ({ ...prev, khach_hang_id: val }))}
                   placeholder="-- Chọn hoặc tìm khách hàng --"
                   searchPlaceholder="Tìm tên, SĐT, biển số..."
-                  className="font-bold overflow-hidden"
+                  className={clsx("font-bold overflow-hidden", isReadOnly && "pointer-events-none opacity-80")}
                 />
               </div>
 
@@ -177,10 +183,10 @@ const SalesCardFormModal: React.FC<{
                 <SearchableSelect
                   options={personnel.map(p => ({ value: p.id, label: `${p.ho_ten} (${p.vi_tri})` }))}
                   value={formData.nhan_vien_id || undefined}
-                  onValueChange={(val: string) => setFormData(prev => ({ ...prev, nhan_vien_id: val }))}
+                  onValueChange={(val: string) => !isReadOnly && setFormData(prev => ({ ...prev, nhan_vien_id: val }))}
                   placeholder="-- Chọn nhân viên --"
                   searchPlaceholder="Tìm tên, vị trí..."
-                  className="font-bold overflow-hidden"
+                  className={clsx("font-bold overflow-hidden", isReadOnly && "pointer-events-none opacity-80")}
                 />
               </div>
 
@@ -193,10 +199,10 @@ const SalesCardFormModal: React.FC<{
                 <MultiSearchableSelect
                   options={serviceOptions}
                   value={formData.dich_vu_ids || []}
-                  onValueChange={(vals: string[]) => setFormData(prev => ({ ...prev, dich_vu_ids: vals }))}
+                  onValueChange={(vals: string[]) => !isReadOnly && setFormData(prev => ({ ...prev, dich_vu_ids: vals }))}
                   placeholder="-- Chọn hoặc tìm nhiều dịch vụ --"
                   searchPlaceholder="Tìm tên dịch vụ..."
-                  className="font-bold"
+                  className={clsx("font-bold", isReadOnly && "pointer-events-none opacity-80")}
                 />
 
                 {/* Detailed Service Table */}
@@ -208,7 +214,7 @@ const SalesCardFormModal: React.FC<{
                           <th className="px-4 py-2 text-left">Tên dịch vụ</th>
                           <th className="px-4 py-2 text-right w-[180px]">Đơn giá</th>
                           <th className="px-4 py-2 text-right w-[150px]">Thành tiền</th>
-                          <th className="w-10"></th>
+                          {!isReadOnly && <th className="w-10"></th>}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border/50">
@@ -220,8 +226,9 @@ const SalesCardFormModal: React.FC<{
                                 <input
                                   type="text"
                                   value={formatNumber(item.gia_ban)}
-                                  onChange={(e) => handlePriceChange(item.id, e.target.value)}
-                                  className="w-full text-right bg-background border border-transparent hover:border-border focus:border-primary px-2 py-1.5 rounded-lg outline-none font-bold text-primary transition-all pr-8"
+                                  onChange={(e) => !isReadOnly && handlePriceChange(item.id, e.target.value)}
+                                  disabled={isReadOnly}
+                                  className={clsx("w-full text-right bg-background border border-transparent hover:border-border focus:border-primary px-2 py-1.5 rounded-lg outline-none font-bold text-primary transition-all pr-8", isReadOnly && "cursor-not-allowed")}
                                 />
                                 <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground font-medium pointer-events-none group-focus-within:text-primary transition-colors">đ</span>
                               </div>
@@ -229,19 +236,21 @@ const SalesCardFormModal: React.FC<{
                             <td className="px-4 py-3 text-right font-bold text-foreground">
                               {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(item.gia_ban)}
                             </td>
-                            <td className="px-2 py-3 text-center">
-                              <button 
-                                type="button"
-                                onClick={() => setFormData(prev => ({
-                                  ...prev,
-                                  dich_vu_ids: prev.dich_vu_ids?.filter(id => id !== item.id),
-                                  service_items: prev.service_items?.filter(i => i.id !== item.id)
-                                }))}
-                                className="p-1.5 text-muted-foreground/50 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                              >
-                                <X size={14} />
-                              </button>
-                            </td>
+                            {!isReadOnly && (
+                              <td className="px-2 py-3 text-center">
+                                <button 
+                                  type="button"
+                                  onClick={() => setFormData(prev => ({
+                                    ...prev,
+                                    dich_vu_ids: prev.dich_vu_ids?.filter(id => id !== item.id),
+                                    service_items: prev.service_items?.filter(i => i.id !== item.id)
+                                  }))}
+                                  className="p-1.5 text-muted-foreground/50 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                                >
+                                  <X size={14} />
+                                </button>
+                              </td>
+                            )}
                           </tr>
                         ))}
                       </tbody>
@@ -259,9 +268,11 @@ const SalesCardFormModal: React.FC<{
                 <div className="flex gap-2">
                   {['hài lòng', 'bình thường', 'không hài lòng'].map(opt => (
                     <button
-                      key={opt} type="button" onClick={() => setFormData(prev => ({ ...prev, danh_gia: opt }))}
+                      key={opt} type="button" 
+                      onClick={() => !isReadOnly && setFormData(prev => ({ ...prev, danh_gia: opt }))}
                       className={clsx(
                         "flex-1 py-2 px-3 rounded-xl border text-[12px] font-bold transition-all capitalize",
+                        isReadOnly && "cursor-default",
                         formData.danh_gia === opt ? "bg-primary text-white border-primary shadow-md" : "bg-muted/50 border-border text-muted-foreground hover:bg-muted"
                       )}
                     >
@@ -271,9 +282,9 @@ const SalesCardFormModal: React.FC<{
                 </div>
               </div>
 
-              <InputField label="Số Km" name="so_km" value={formatNumber(formData.so_km)} onChange={handleInputChange} icon={History} placeholder="12.000" />
+              <InputField label="Số Km" name="so_km" value={formatNumber(formData.so_km)} onChange={handleInputChange} icon={History} placeholder="12.000" disabled={isReadOnly} />
 
-              <InputField label="Ngày nhắc thay dầu" name="ngay_nhac_thay_dau" type="date" value={formData.ngay_nhac_thay_dau || ''} onChange={handleInputChange} icon={Calendar} />
+              <InputField label="Ngày nhắc thay dầu" name="ngay_nhac_thay_dau" type="date" value={formData.ngay_nhac_thay_dau || ''} onChange={handleInputChange} icon={Calendar} disabled={isReadOnly} />
             </div>
 
             {formData.service_items && formData.service_items.length > 0 && (
@@ -290,11 +301,34 @@ const SalesCardFormModal: React.FC<{
               </div>
             )}
 
-            <div className="mt-8 flex items-center justify-end gap-3 pt-6 border-t border-border">
-              <button type="button" onClick={onClose} className="px-6 py-2 rounded-xl text-sm font-bold border border-border hover:bg-muted transition-all">Hủy</button>
-              <button type="submit" className="px-8 py-2 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/25 transition-all flex items-center gap-2">
-                <Save size={18} /> <span>{editingCard ? 'Lưu thay đổi' : 'Lập phiếu'}</span>
-              </button>
+            <div className="mt-8 flex items-center justify-between gap-3 pt-6 border-t border-border">
+              <div className="flex items-center gap-3">
+                {editingCard && onCollectPayment && (
+                  <button 
+                    type="button" 
+                    onClick={async () => {
+                      setIsCollecting(true);
+                      try { await onCollectPayment(formData); } finally { setIsCollecting(false); }
+                    }}
+                    disabled={isCollecting}
+                    className="px-6 py-2 rounded-xl text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all flex items-center gap-2 disabled:opacity-50"
+                  >
+                    {isCollecting ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+                    <span>THU TIỀN</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button type="button" onClick={onClose} className="px-6 py-2 rounded-xl text-sm font-bold border border-border hover:bg-muted transition-all">
+                  {isReadOnly ? 'Đóng' : 'Hủy'}
+                </button>
+                {!isReadOnly && (
+                  <button type="submit" className="px-8 py-2 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/25 transition-all flex items-center gap-2">
+                    <Save size={18} /> <span>{editingCard ? 'Lưu thay đổi' : 'Lập phiếu'}</span>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </form>

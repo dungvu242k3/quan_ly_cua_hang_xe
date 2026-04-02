@@ -3,6 +3,7 @@ import {
   Calendar,
   Download,
   Edit2,
+  Eye,
   Loader2,
   Plus,
   Search,
@@ -48,6 +49,7 @@ const SalesCardManagementPage: React.FC = () => {
   const [totalCount, setTotalCount] = useState(0);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isReadOnlyModal, setIsReadOnlyModal] = useState(false);
   const [editingCard, setEditingCard] = useState<SalesCard | null>(null);
   const [formData, setFormData] = useState<Partial<SalesCard>>({});
 
@@ -117,6 +119,7 @@ const SalesCardManagementPage: React.FC = () => {
   }, [location.state, loading, customers, personnel, currentUser]);
 
   const handleOpenModal = (card?: SalesCard) => {
+    setIsReadOnlyModal(false);
     if (card) {
       setEditingCard(card);
       setFormData({ ...card });
@@ -141,8 +144,16 @@ const SalesCardManagementPage: React.FC = () => {
     setIsModalOpen(true);
   };
 
+  const handleViewCard = (card: SalesCard) => {
+    setIsReadOnlyModal(true);
+    setEditingCard(card);
+    setFormData({ ...card });
+    setIsModalOpen(true);
+  };
+
   const handleCloseModal = () => {
     setIsModalOpen(false);
+    setIsReadOnlyModal(false);
     setEditingCard(null);
     setFormData({});
   };
@@ -223,6 +234,45 @@ const SalesCardManagementPage: React.FC = () => {
     } catch (error) {
       console.error(error);
       alert('Lỗi: Không thể lưu phiếu bán hàng.');
+    }
+  };
+
+  const handleCollectPayment = async (data: any) => {
+    if (!editingCard) return;
+    
+    try {
+      const items = data.service_items || [];
+      const totalAmount = items.reduce((sum: number, item: any) => sum + (item.gia_ban || 0), 0);
+      
+      if (totalAmount <= 0) {
+        alert('Cảnh báo: Đơn hàng chưa có dịch vụ hoặc tổng tiền bằng 0.');
+        return;
+      }
+
+      const existingTx = await getTransactionByOrderId(editingCard.id);
+      
+      const financialRecord: Partial<ThuChi> = {
+        id: existingTx?.id, 
+        loai_phieu: 'phiếu thu',
+        id_don: editingCard.id,
+        so_tien: totalAmount,
+        ngay: data.ngay || new Date().toISOString().split('T')[0],
+        gio: data.gio || new Date().toLocaleTimeString('vi-VN', { hour12: false, hour: '2-digit', minute: '2-digit' }),
+        co_so: (items.length > 0) 
+          ? (services.find(s => s.id === items[0].id)?.co_so || 'Cơ sở chính')
+          : 'Cơ sở chính',
+        id_khach_hang: editingCard.khach_hang_id,
+        danh_muc: 'Doanh thu dịch vụ',
+        trang_thai: 'Hoàn thành',
+        ghi_chu: `Thu tiền đơn hàng ${editingCard.id.slice(0, 8)} (Thao tác nhanh)`
+      };
+      
+      await upsertTransaction(financialRecord);
+      alert(`✅ Đã thu tiền thành công: ${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(totalAmount)}`);
+      await loadData();
+    } catch (error) {
+      console.error(error);
+      alert('Lỗi: Không thể thực hiện thu tiền.');
     }
   };
 
@@ -633,8 +683,9 @@ const SalesCardManagementPage: React.FC = () => {
                     </td>
                     <td className="px-4 py-4 text-center">
                       <div className="flex items-center justify-center gap-2">
-                        <button onClick={() => handleOpenModal(card)} className="p-1.5 text-primary hover:bg-primary/10 rounded transition-colors"><Edit2 size={15} /></button>
-                        <button onClick={() => handleDelete(card.id)} className="p-1.5 text-destructive hover:bg-destructive/10 rounded transition-colors"><Trash2 size={15} /></button>
+                        <button onClick={() => handleViewCard(card)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Xem chi tiết"><Eye size={15} /></button>
+                        <button onClick={() => handleOpenModal(card)} className="p-1.5 text-primary hover:bg-primary/10 rounded transition-colors" title="Chỉnh sửa"><Edit2 size={15} /></button>
+                        <button onClick={() => handleDelete(card.id)} className="p-1.5 text-destructive hover:bg-destructive/10 rounded transition-colors" title="Xóa"><Trash2 size={15} /></button>
                       </div>
                     </td>
                   </tr>
@@ -684,6 +735,8 @@ const SalesCardManagementPage: React.FC = () => {
           onClose={handleCloseModal}
           onSubmit={handleSubmit}
           onCustomerAdded={loadData}
+          isReadOnly={isReadOnlyModal}
+          onCollectPayment={handleCollectPayment}
         />
       )}
     </div>

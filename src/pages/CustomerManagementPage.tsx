@@ -1,7 +1,7 @@
 import { 
   Search, Plus, 
   Edit2, Trash2, 
-  History, User, Loader2,
+  History, User,
   ArrowLeft, ChevronDown, List, 
   Building2, Download, Upload
 } from 'lucide-react';
@@ -14,6 +14,7 @@ import CustomerFormModal from '../components/CustomerFormModal';
 import CustomerDetailsModal from '../components/CustomerDetailsModal';
 import Pagination from '../components/Pagination';
 import { clsx } from 'clsx';
+import { useCallback, useMemo } from 'react';
 
 const CustomerManagementPage: React.FC = () => {
   const navigate = useNavigate();
@@ -57,15 +58,18 @@ const CustomerManagementPage: React.FC = () => {
     { id: 'actions', label: 'Thao tác' }
   ];
 
-  const toggleColumn = (colId: string) => {
+  const toggleColumn = useCallback((colId: string) => {
     setVisibleColumns(prev =>
       prev.includes(colId) ? prev.filter(c => c !== colId) : [...prev, colId]
     );
-  };
+  }, []);
 
-  const cycleOptions = ["30 ngày", "60 ngày", "90 ngày", "180 ngày"];
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const cycleOptions = useMemo(() => ["30 ngày", "60 ngày", "90 ngày", "180 ngày"], []);
+  const today = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
 
   // Load data from Supabase with pagination
   const loadCustomers = async () => {
@@ -111,45 +115,35 @@ const CustomerManagementPage: React.FC = () => {
     setOpenDropdown(prev => prev === id ? null : id);
   };
 
-  const handleFilterChange = (setter: React.Dispatch<React.SetStateAction<string[]>>, val: string) => {
+  const handleFilterChange = useCallback((setter: React.Dispatch<React.SetStateAction<string[]>>, val: string) => {
     setter(prev => prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val]);
-  };
+  }, []);
 
   // Since we use Server-side pagination, 'customers' IS already the filtered list for the current page
   const displayCustomers = customers;
 
 
 
-  const formatDateForDisplay = (dateStr: string | undefined) => {
-    if (!dateStr) return '—';
-    try {
-      const d = new Date(dateStr);
-      if (isNaN(d.getTime())) return dateStr;
-      return d.toLocaleDateString('vi-VN');
-    } catch {
-      return dateStr;
-    }
-  };
 
-  const handleOpenModal = (customer?: KhachHang) => {
+  const handleOpenModal = useCallback((customer?: KhachHang) => {
     setEditingCustomer(customer || null);
     setIsModalOpen(true);
-  };
+  }, []);
 
-  const handleCloseModal = () => {
+  const handleCloseModal = useCallback(() => {
     setIsModalOpen(false);
     setEditingCustomer(null);
-  };
+  }, []);
 
-  const handleOpenDetails = (customer: KhachHang) => {
+  const handleOpenDetails = useCallback((customer: KhachHang) => {
     setSelectedCustomer(customer);
     setIsDetailsOpen(true);
-  };
+  }, []);
 
-  const handleCloseDetails = () => {
+  const handleCloseDetails = useCallback(() => {
     setIsDetailsOpen(false);
     setSelectedCustomer(null);
-  };
+  }, []);
 
 
 
@@ -270,7 +264,7 @@ const CustomerManagementPage: React.FC = () => {
     reader.readAsBinaryString(file);
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = useCallback(async (id: string) => {
     if (window.confirm('Bạn có chắc chắn muốn xóa khách hàng này?')) {
       try {
         await deleteCustomer(id);
@@ -279,7 +273,7 @@ const CustomerManagementPage: React.FC = () => {
         alert('Lỗi: Không thể xóa khách hàng.');
       }
     }
-  };
+  }, [loadCustomers]);
 
   const handleDeleteAll = async () => {
     if (window.confirm('CẢNH BÁO: Bạn có chắc chắn muốn XÓA TẤT CẢ khách hàng?')) {
@@ -298,7 +292,7 @@ const CustomerManagementPage: React.FC = () => {
     }
   };
 
-  const deptOptions = Array.from(new Set(customers.map(c => c.dia_chi_hien_tai).filter(Boolean)));
+  const deptOptions = useMemo(() => Array.from(new Set(customers.map(c => c.dia_chi_hien_tai).filter(Boolean))), [customers]);
 
   return (
     <div className="w-full flex-1 animate-in fade-in slide-in-from-bottom-4 duration-500 text-muted-foreground font-sans">
@@ -501,104 +495,20 @@ const CustomerManagementPage: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-slate-100 text-[13px]">
                 {loading ? (
-                  <tr>
-                    <td colSpan={12} className="px-4 py-12 text-center text-muted-foreground">
-                      <Loader2 className="animate-spin inline-block mr-2" size={20} />
-                      Đang tải dữ liệu...
-                    </td>
-                  </tr>
-                ) : displayCustomers.map(customer => {
-                  const isCầnThayDầu = customer.ngay_thay_dau ? new Date(customer.ngay_thay_dau) <= today : false;
-                  return (
-                    <tr key={customer.id} className="hover:bg-muted/80 transition-colors">
-                      <td className="px-4 py-4 text-center"><input className="rounded border-border text-primary size-4" type="checkbox" /></td>
-                      {visibleColumns.includes('ma_khach_hang') && <td className="px-4 py-4 font-mono text-[11px] text-muted-foreground">{customer.ma_khach_hang || customer.id.slice(0, 8)}</td>}
-                      {visibleColumns.includes('anh') && (
-                        <td className="px-4 py-4">
-                          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary overflow-hidden border border-border shadow-sm">
-                            {customer.anh ? (
-                              <img src={customer.anh} alt="" className="w-full h-full object-cover" />
-                            ) : (
-                              <User size={20} />
-                            )}
-                          </div>
-                        </td>
-                      )}
-                      {visibleColumns.includes('ho_va_ten') && (
-                        <td className="px-4 py-4 font-semibold text-foreground whitespace-nowrap">
-                          <button
-                            onClick={() => handleOpenDetails(customer)}
-                            className="text-primary hover:underline hover:text-primary/80 transition-all text-left"
-                          >
-                            {customer.ho_va_ten}
-                          </button>
-                        </td>
-                      )}
-                      {visibleColumns.includes('so_dien_thoai') && <td className="px-4 py-4 text-muted-foreground whitespace-nowrap">{customer.so_dien_thoai}</td>}
-                      {visibleColumns.includes('dia_chi_hien_tai') && (
-                        <td className="px-4 py-4 text-muted-foreground text-[12px] truncate max-w-[200px]" title={customer.dia_chi_hien_tai}>
-                          {customer.dia_chi_hien_tai || '—'}
-                        </td>
-                      )}
-                      {visibleColumns.includes('bien_so_xe') && (
-                        <td className="px-4 py-4">
-                          <span className={clsx(
-                            "px-2 py-0.5 rounded text-[11px] font-bold border",
-                            customer.bien_so_xe === 'Xe Chưa Biển'
-                              ? "bg-amber-50 text-amber-600 border-amber-100"
-                              : "bg-blue-50 text-blue-600 border-blue-100 uppercase"
-                          )}>
-                            {customer.bien_so_xe}
-                          </span>
-                        </td>
-                      )}
-                      {visibleColumns.includes('ngay_dang_ky') && <td className="px-4 py-4 text-muted-foreground whitespace-nowrap">{formatDateForDisplay(customer.ngay_dang_ky)}</td>}
-                      {visibleColumns.includes('so_km') && (
-                        <td className="px-4 py-4 font-bold text-foreground">
-                          {customer.so_km?.toLocaleString()} <span className="font-normal text-muted-foreground text-[11px]">Km</span>
-                        </td>
-                      )}
-                      {visibleColumns.includes('so_ngay_thay_dau') && (
-                        <td className="px-4 py-4 text-center text-muted-foreground">
-                          {customer.so_ngay_thay_dau}
-                        </td>
-                      )}
-                      {visibleColumns.includes('ngay_thay_dau') && (
-                        <td className="px-4 py-4">
-                          <div className="flex items-center gap-1">
-                            <span className={clsx(
-                              "font-medium",
-                              isCầnThayDầu ? "text-red-600 font-bold" : "text-muted-foreground"
-                            )}>
-                              {formatDateForDisplay(customer.ngay_thay_dau)}
-                            </span>
-                            {isCầnThayDầu && <span className="px-1 py-0.5 bg-red-100 text-red-600 rounded text-[9px] font-bold animate-pulse">!!!</span>}
-                          </div>
-                        </td>
-                      )}
-                      {visibleColumns.includes('actions') && (
-                        <td className="px-4 py-4">
-                          <div className="flex items-center justify-center gap-4">
-                            <button
-                              type="button"
-                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleOpenModal(customer); }}
-                              className="text-primary hover:text-blue-700 transition-colors"
-                            >
-                              <Edit2 size={18} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDelete(customer.id); }}
-                              className="text-destructive hover:text-destructive/80 transition-colors"
-                            >
-                              <Trash2 size={18} />
-                            </button>
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  );
-                })}
+                  Array.from({ length: pageSize }).map((_, i) => (
+                    <SkeletonRow key={i} visibleColumns={visibleColumns} />
+                  ))
+                ) : displayCustomers.map(customer => (
+                    <CustomerTableRow 
+                      key={customer.id} 
+                      customer={customer} 
+                      visibleColumns={visibleColumns}
+                      onEdit={handleOpenModal}
+                      onDelete={handleDelete}
+                      onOpenDetails={handleOpenDetails}
+                      today={today}
+                    />
+                ))}
                 {!loading && displayCustomers.length === 0 && (
                   <tr>
                     <td colSpan={12} className="px-4 py-8 text-center text-muted-foreground">
@@ -637,5 +547,109 @@ const CustomerManagementPage: React.FC = () => {
     </div>
   );
 };
+
+// Optimized Row Component
+const CustomerTableRow: React.FC<{
+  customer: KhachHang,
+  visibleColumns: string[],
+  onEdit: (customer: KhachHang) => void,
+  onDelete: (id: string) => void,
+  onOpenDetails: (customer: KhachHang) => void,
+  today: Date
+}> = React.memo(({ customer, visibleColumns, onEdit, onDelete, onOpenDetails, today }) => {
+  const isCầnThayDầu = customer.ngay_thay_dau ? new Date(customer.ngay_thay_dau) <= today : false;
+  
+  const formatDate = (dateStr: string | undefined) => {
+    if (!dateStr) return '—';
+    try {
+      const d = new Date(dateStr);
+      return isNaN(d.getTime()) ? dateStr : d.toLocaleDateString('vi-VN');
+    } catch { return dateStr; }
+  };
+
+  return (
+    <tr className="hover:bg-muted/80 transition-colors">
+      <td className="px-4 py-4 text-center"><input className="rounded border-border text-primary size-4" type="checkbox" /></td>
+      {visibleColumns.includes('ma_khach_hang') && <td className="px-4 py-4 font-mono text-[11px] text-muted-foreground">{customer.ma_khach_hang || customer.id.slice(0, 8)}</td>}
+      {visibleColumns.includes('anh') && (
+        <td className="px-4 py-4">
+          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary overflow-hidden border border-border shadow-sm">
+            {customer.anh ? (
+              <img src={customer.anh} alt="" className="w-full h-full object-cover border-none" loading="lazy" />
+            ) : (
+              <User size={20} />
+            )}
+          </div>
+        </td>
+      )}
+      {visibleColumns.includes('ho_va_ten') && (
+        <td className="px-4 py-4 font-semibold text-foreground whitespace-nowrap">
+          <button onClick={() => onOpenDetails(customer)} className="text-primary hover:underline hover:text-primary/80 transition-all text-left">
+            {customer.ho_va_ten}
+          </button>
+        </td>
+      )}
+      {visibleColumns.includes('so_dien_thoai') && <td className="px-4 py-4 text-muted-foreground whitespace-nowrap">{customer.so_dien_thoai}</td>}
+      {visibleColumns.includes('dia_chi_hien_tai') && (
+        <td className="px-4 py-4 text-muted-foreground text-[12px] truncate max-w-[200px]" title={customer.dia_chi_hien_tai}>
+          {customer.dia_chi_hien_tai || '—'}
+        </td>
+      )}
+      {visibleColumns.includes('bien_so_xe') && (
+        <td className="px-4 py-4">
+          <span className={clsx(
+            "px-2 py-0.5 rounded text-[11px] font-bold border",
+            customer.bien_so_xe === 'Xe Chưa Biển' ? "bg-amber-50 text-amber-600 border-amber-100" : "bg-blue-50 text-blue-600 border-blue-100 uppercase"
+          )}>
+            {customer.bien_so_xe}
+          </span>
+        </td>
+      )}
+      {visibleColumns.includes('ngay_dang_ky') && <td className="px-4 py-4 text-muted-foreground whitespace-nowrap">{formatDate(customer.ngay_dang_ky)}</td>}
+      {visibleColumns.includes('so_km') && (
+        <td className="px-4 py-4 font-bold text-foreground">
+          {customer.so_km?.toLocaleString()} <span className="font-normal text-muted-foreground text-[11px]">Km</span>
+        </td>
+      )}
+      {visibleColumns.includes('so_ngay_thay_dau') && <td className="px-4 py-4 text-center text-muted-foreground">{customer.so_ngay_thay_dau}</td>}
+      {visibleColumns.includes('ngay_thay_dau') && (
+        <td className="px-4 py-4">
+          <div className="flex items-center gap-1">
+            <span className={clsx("font-medium", isCầnThayDầu ? "text-red-600 font-bold" : "text-muted-foreground")}>
+              {formatDate(customer.ngay_thay_dau)}
+            </span>
+            {isCầnThayDầu && <span className="px-1 py-0.5 bg-red-100 text-red-600 rounded text-[9px] font-bold animate-pulse">!!!</span>}
+          </div>
+        </td>
+      )}
+      {visibleColumns.includes('actions') && (
+        <td className="px-4 py-4">
+          <div className="flex items-center justify-center gap-4">
+            <button onClick={(e) => { e.preventDefault(); onEdit(customer); }} className="text-primary hover:text-blue-700 transition-colors">
+              <Edit2 size={18} />
+            </button>
+            <button onClick={(e) => { e.preventDefault(); onDelete(customer.id); }} className="text-destructive hover:text-destructive/80 transition-colors">
+              <Trash2 size={18} />
+            </button>
+          </div>
+        </td>
+      )}
+    </tr>
+  );
+});
+
+const SkeletonRow: React.FC<{ visibleColumns: string[] }> = ({ visibleColumns }) => (
+  <tr className="animate-pulse border-b border-border/50">
+    <td className="px-4 py-5 w-10 text-center"><div className="w-4 h-4 bg-muted rounded mx-auto" /></td>
+    {visibleColumns.map(col => (
+      <td key={col} className="px-4 py-5">
+        <div className={clsx(
+          "bg-muted rounded h-4",
+          col === 'ho_va_ten' ? "w-32" : col === 'anh' ? "w-10 h-10 rounded-full" : "w-20"
+        )} />
+      </td>
+    ))}
+  </tr>
+);
 
 export default CustomerManagementPage;

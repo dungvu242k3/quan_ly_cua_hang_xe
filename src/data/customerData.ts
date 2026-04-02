@@ -57,13 +57,14 @@ export const getCustomersPaginated = async (
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
+  // We fetch a prioritized list of columns to keep the response lean
   let query = supabase
     .from('khach_hang')
-    .select('*', { count: 'exact' });
+    .select('id, ho_va_ten, so_dien_thoai, anh, dia_chi_hien_tai, bien_so_xe, ngay_dang_ky, so_km, so_ngay_thay_dau, ngay_thay_dau, ma_khach_hang', { count: 'exact' });
 
   if (searchQuery) {
-    // Search in multiple columns (ho_va_ten, so_dien_thoai, bien_so_xe)
-    query = query.or(`ho_va_ten.ilike.%${searchQuery}%,so_dien_thoai.ilike.%${searchQuery}%,bien_so_xe.ilike.%${searchQuery}%`);
+    // accent-insensitive search handled via .or() and .ilike() in Supabase
+    query = query.or(`ho_va_ten.ilike.%${searchQuery}%,so_dien_thoai.ilike.%${searchQuery}%,bien_so_xe.ilike.%${searchQuery}%,ma_khach_hang.ilike.%${searchQuery}%`);
   }
 
   const { data, count, error } = await query
@@ -152,9 +153,9 @@ export const uploadCustomerImage = async (file: File): Promise<string> => {
 };
 
 export const getCustomerServiceHistory = async (
-  customerId: string,
-  startDate?: string,
-  endDate?: string
+   customerId: string,
+   startDate?: string,
+   endDate?: string
 ): Promise<any[]> => {
   let query = supabase
     .from('the_ban_hang')
@@ -182,4 +183,19 @@ export const getCustomerServiceHistory = async (
     throw error;
   }
   return data || [];
+};
+
+export const getCustomerByPlate = async (plate: string): Promise<KhachHang | null> => {
+   if (!plate || plate.trim() === '') return null;
+   const { data, error } = await supabase
+     .from('khach_hang')
+     .select('*')
+     .eq('bien_so_xe', plate.trim())
+     .maybeSingle();
+
+   if (error) {
+     console.error('Error fetching customer by plate:', error);
+     return null;
+   }
+   return data as KhachHang;
 };

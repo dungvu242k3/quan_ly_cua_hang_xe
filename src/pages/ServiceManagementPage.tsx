@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   Search, Plus, 
   Edit2, Trash2, Camera,
+  Eye,
   Loader2, ArrowLeft, ChevronDown, 
   Building2, Wrench,
   Download, Upload
@@ -32,6 +33,7 @@ const ServiceManagementPage: React.FC = () => {
   const dropdownRef = useRef<HTMLDivElement>(null);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isReadOnlyModal, setIsReadOnlyModal] = useState(false);
   const [editingService, setEditingService] = useState<DichVu | null>(null);
   const [formData, setFormData] = useState<Partial<DichVu>>({});
 
@@ -89,6 +91,7 @@ const ServiceManagementPage: React.FC = () => {
   };
 
   const handleOpenModal = (service?: DichVu) => {
+    setIsReadOnlyModal(false);
     if (service) {
       setEditingService(service);
       setFormData({ ...service });
@@ -108,8 +111,16 @@ const ServiceManagementPage: React.FC = () => {
     setIsModalOpen(true);
   };
 
+  const handleViewService = (service: DichVu) => {
+    setIsReadOnlyModal(true);
+    setEditingService(service);
+    setFormData({ ...service });
+    setIsModalOpen(true);
+  };
+
   const handleCloseModal = () => {
     setIsModalOpen(false);
+    setIsReadOnlyModal(false);
     setEditingService(null);
     setFormData({});
   };
@@ -407,8 +418,9 @@ const ServiceManagementPage: React.FC = () => {
                     </td>
                     <td className="px-4 py-4 text-center">
                       <div className="flex items-center justify-center gap-2">
-                        <button onClick={() => handleOpenModal(service)} className="p-1.5 text-primary hover:bg-primary/10 rounded transition-colors"><Edit2 size={15} /></button>
-                        <button onClick={() => handleDelete(service.id)} className="p-1.5 text-destructive hover:bg-destructive/10 rounded transition-colors"><Trash2 size={15} /></button>
+                        <button onClick={() => handleViewService(service)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Xem chi tiết"><Eye size={15} /></button>
+                        <button onClick={() => handleOpenModal(service)} className="p-1.5 text-primary hover:bg-primary/10 rounded transition-colors" title="Chỉnh sửa"><Edit2 size={15} /></button>
+                        <button onClick={() => handleDelete(service.id)} className="p-1.5 text-destructive hover:bg-destructive/10 rounded transition-colors" title="Xóa"><Trash2 size={15} /></button>
                       </div>
                     </td>
                   </tr>
@@ -439,6 +451,7 @@ const ServiceManagementPage: React.FC = () => {
         onClose={handleCloseModal}
         onSubmit={handleSubmit}
         branchOptions={branchOptions}
+        isReadOnly={isReadOnlyModal}
       />
     </div>
   );

@@ -10,6 +10,9 @@ export interface ThuChi {
   ghi_chu: string | null;
   anh: string | null;
   so_tien: number;
+  khach_tra?: number;
+  nguoi_nhan: string | null;
+  nguoi_chi: string | null;
   trang_thai: string;
   ngay: string;
   gio: string;
@@ -145,7 +148,7 @@ export const getTransactionsPaginated = async (
     .select('*', { count: 'exact' });
 
   if (searchQuery) {
-    query = query.or(`danh_muc.ilike.%${searchQuery}%,ghi_chu.ilike.%${searchQuery}%,id_don.ilike.%${searchQuery}%,id_khach_hang.ilike.%${searchQuery}%,so_tien::text.ilike.%${searchQuery}%`);
+    query = query.or(`danh_muc.ilike.%${searchQuery}%,ghi_chu.ilike.%${searchQuery}%,id_don.ilike.%${searchQuery}%,id_khach_hang.ilike.%${searchQuery}%,so_tien::text.ilike.%${searchQuery}%,nguoi_nhan.ilike.%${searchQuery}%,nguoi_chi.ilike.%${searchQuery}%`);
   }
 
   if (filters?.branches?.length) {

@@ -17,8 +17,9 @@ import {
 } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import type { KhachHang, OilChangeEntry } from '../data/customerData';
-import { uploadCustomerImage, upsertCustomer } from '../data/customerData';
+import { getCustomerByPlate, uploadCustomerImage, upsertCustomer } from '../data/customerData';
 
 interface CustomerFormModalProps {
   isOpen: boolean;
@@ -31,6 +32,8 @@ const CustomerFormModal: React.FC<CustomerFormModalProps> = React.memo(({ isOpen
   const [formData, setFormData] = useState<Partial<KhachHang>>({});
   const [uploadingImage, setUploadingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
+  const [redirecting, setRedirecting] = useState(false);
 
   const formatDateForInput = (dateStr: string | undefined) => {
     if (!dateStr) return '';
@@ -77,6 +80,39 @@ const CustomerFormModal: React.FC<CustomerFormModalProps> = React.memo(({ isOpen
       }
     }
   }, [isOpen, customer]);
+
+  // Duplication Plate Check logic
+  useEffect(() => {
+    if (!isOpen || !formData.bien_so_xe || formData.bien_so_xe.trim() === '' || customer || redirecting) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        const plate = formData.bien_so_xe!.trim();
+        // Basic validation: at least 4 chars
+        if (plate.length < 4) return;
+
+        const existing: KhachHang | null = await getCustomerByPlate(plate);
+        if (existing && existing.id !== (customer?.id ?? '')) {
+          setRedirecting(true);
+          const confirmOrder = window.confirm(`Biển số [${plate}] đã tồn tại cho khách hàng: ${existing.ho_va_ten}.\nBạn có muốn chuyển sang LẬP HÓA ĐƠN cho khách hàng này không?`);
+          
+          if (confirmOrder) {
+            onClose();
+            navigate('/ban-hang/phieu-ban-hang', { state: { customerId: existing.id } });
+          } else {
+            // If they cancel, don't keep redirecting on every keystroke
+            // We might want to keep redirecting false but maybe add a flag to ignore this plate?
+            // For now, just reset redirecting so they can continue editing if they want.
+            setRedirecting(false);
+          }
+        }
+      } catch (err) {
+        console.error('Lỗi kiểm tra biển số:', err);
+      }
+    }, 800);
+
+    return () => clearTimeout(timer);
+  }, [formData.bien_so_xe, isOpen, customer, navigate, onClose, redirecting]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;

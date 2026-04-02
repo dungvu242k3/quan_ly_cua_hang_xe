@@ -141,6 +141,8 @@ const FinancialManagementPage: React.FC = () => {
         gio: now.toTimeString().split(' ')[0].substring(0, 5),
         id_don: '',
         id_khach_hang: '',
+        nguoi_chi: '',
+        nguoi_nhan: '',
         danh_muc: '',
         ghi_chu: '',
         anh: ''
@@ -178,6 +180,8 @@ const FinancialManagementPage: React.FC = () => {
         "ID": "Optional: UUID format",
         "ID Đơn": "ORD-123",
         "ID Khách hàng": "0912345678",
+        "Người chi": "Nguyễn Văn A",
+        "Người nhận": "Trần Thị B",
         "Ghi chú": "Thanh toán tiền mặt"
       }
     ];
@@ -260,6 +264,8 @@ const FinancialManagementPage: React.FC = () => {
             trang_thai: getValue(['Trạng thái', 'trạng thái', 'status']) || 'Hoàn thành',
             id_don: String(getValue(['id đơn', 'ID đơn', 'order_id', 'mã đơn']) || '').trim(),
             id_khach_hang: String(getValue(['id khách hàng', 'ID khách hàng', 'customer_id', 'Mã KH']) || '').trim(),
+            nguoi_chi: getValue(['Người chi', 'người chi', 'nguoi_chi', 'payer', 'người nộp']) || '',
+            nguoi_nhan: getValue(['Người nhận', 'người nhận', 'nguoi_nhan', 'recipient']) || '',
             ghi_chu: getValue(['Ghi chú', 'ghi chú', 'note']) || '',
             anh: getValue(['ảnh', 'Ảnh', 'image', 'hình ảnh']) || null
           };
@@ -487,6 +493,8 @@ const FinancialManagementPage: React.FC = () => {
                       <th className="px-4 py-3 font-semibold">Danh mục</th>
                       <th className="px-4 py-3 font-semibold">ID Đơn</th>
                       <th className="px-4 py-3 font-semibold">Khách hàng</th>
+                      <th className="px-4 py-3 font-semibold">Người chi</th>
+                      <th className="px-4 py-3 font-semibold">Người nhận</th>
                       <th className="px-4 py-3 font-semibold text-right">Số tiền</th>
                       <th className="px-4 py-3 font-semibold">Cơ sở</th>
                       <th className="px-4 py-3 font-semibold">Trạng thái</th>
@@ -530,6 +538,8 @@ const FinancialManagementPage: React.FC = () => {
                         <td className="px-4 py-4 text-foreground font-medium">{transaction.danh_muc || '—'}</td>
                         <td className="px-4 py-4 font-mono text-[12px]">{transaction.id_don || '—'}</td>
                         <td className="px-4 py-4">{transaction.id_khach_hang || '—'}</td>
+                        <td className="px-4 py-4">{transaction.nguoi_chi || '—'}</td>
+                        <td className="px-4 py-4">{transaction.nguoi_nhan || '—'}</td>
                         <td className="px-4 py-4 text-right font-black text-foreground">
                           {formatCurrency(transaction.so_tien)}
                         </td>
@@ -553,7 +563,7 @@ const FinancialManagementPage: React.FC = () => {
                     ))}
                     {!loading && transactions.length === 0 && (
                       <tr>
-                        <td colSpan={12} className="px-4 py-8 text-center text-muted-foreground">Không có dữ liệu giao dịch.</td>
+                        <td colSpan={14} className="px-4 py-8 text-center text-muted-foreground">Không có dữ liệu giao dịch.</td>
                       </tr>
                     )}
                   </tbody>
