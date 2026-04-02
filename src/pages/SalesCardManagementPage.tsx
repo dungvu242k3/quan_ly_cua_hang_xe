@@ -623,6 +623,27 @@ const SalesCardManagementPage: React.FC = () => {
           </div>
         </div>
 
+        {/* Summary Bar - Tổng đơn & Tổng tiền */}
+        {!loading && displayItems.length > 0 && (
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+            <div className="px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-primary/5 border border-primary/20 flex items-center gap-2">
+              <span className="text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase">Tổng đơn:</span>
+              <span className="text-sm sm:text-base font-black text-primary">{totalCount}</span>
+            </div>
+            <div className="px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-emerald-500/5 border border-emerald-500/20 flex items-center gap-2">
+              <span className="text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase">Tổng tiền (trang):</span>
+              <span className="text-sm sm:text-base font-black text-emerald-600">
+                {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(
+                  displayItems.reduce((grandSum, card) => {
+                    const items = (card as any).the_ban_hang_ct || [];
+                    return grandSum + items.reduce((sum: number, ct: any) => sum + (ct.gia_ban * (ct.so_luong || 1)), 0);
+                  }, 0)
+                )}
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Data List (Mobile View - Blocks) */}
         <div className="grid grid-cols-1 gap-4 md:hidden">
           {loading ? (
