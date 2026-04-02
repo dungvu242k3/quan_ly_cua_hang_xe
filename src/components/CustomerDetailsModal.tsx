@@ -1,5 +1,5 @@
 import { clsx } from 'clsx';
-import { ArrowRight, Calendar, Check, Clock, Gauge, History, Info, Loader2, MapPin, MessageSquare, Phone, ShoppingCart, User, X } from 'lucide-react';
+import { Calendar, Check, Clock, Gauge, History, Info, Loader2, MapPin, MessageSquare, Phone, ShoppingCart, User, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
@@ -19,7 +19,7 @@ const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
    const todayDate = new Date();
    const firstDay = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1);
    const [startDateStr, setStartDateStr] = useState<string>(firstDay.toISOString().split('T')[0]);
-   const [endDateStr, setEndDateStr] = useState<string>(todayDate.toISOString().split('T')[0]);
+   const endDateStr = todayDate.toISOString().split('T')[0];
    const [loading, setLoading] = useState(true);
    const [history, setHistory] = useState<any[]>([]);
    const [activeTab, setActiveTab] = useState<'history' | 'info'>('history');
@@ -134,16 +134,7 @@ const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
                         className="font-bold text-foreground text-[14px] bg-muted/40 hover:bg-muted/60 border border-border/50 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer"
                      />
                   </div>
-                  <div className="flex items-center justify-center text-muted-foreground mt-4"><ArrowRight size={16} /></div>
-                  <div className="flex flex-col gap-1">
-                     <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Đến ngày</span>
-                     <input
-                        type="date"
-                        value={endDateStr}
-                        onChange={(e) => setEndDateStr(e.target.value)}
-                        className="font-bold text-foreground text-[14px] bg-muted/40 hover:bg-muted/60 border border-border/50 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer"
-                     />
-                  </div>
+
                </div>
 
                <div className="flex-1 flex justify-end gap-3 min-w-[200px]">

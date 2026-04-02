@@ -51,7 +51,7 @@ const SalesCardManagementPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isReadOnlyModal, setIsReadOnlyModal] = useState(false);
   const [editingCard, setEditingCard] = useState<SalesCard | null>(null);
-  const [formData, setFormData] = useState<Partial<SalesCard>>({});
+  const [formData, setFormData] = useState<Partial<SalesCard & { dich_vu_ids?: string[], service_items?: any[] }>>({});
 
   // Debounce search
   useEffect(() => {
@@ -122,7 +122,20 @@ const SalesCardManagementPage: React.FC = () => {
     setIsReadOnlyModal(false);
     if (card) {
       setEditingCard(card);
-      setFormData({ ...card });
+      
+      const mappedServiceItems = ((card as any).the_ban_hang_ct || []).map((ct: any) => ({
+        id: ct.dich_vu_id || ct.san_pham_vat_tu_id || Math.random().toString(),
+        ten_dich_vu: ct.san_pham || 'Dịch vụ',
+        gia_ban: ct.gia_ban || 0,
+        so_luong: ct.so_luong || 1
+      }));
+      const mappedIds = mappedServiceItems.map((item: any) => item.id).filter((id: any) => !id.startsWith('0.'));
+
+      setFormData({ 
+        ...card, 
+        dich_vu_ids: mappedIds,
+        service_items: mappedServiceItems
+      } as any);
     } else {
       setEditingCard(null);
       
@@ -147,7 +160,20 @@ const SalesCardManagementPage: React.FC = () => {
   const handleViewCard = (card: SalesCard) => {
     setIsReadOnlyModal(true);
     setEditingCard(card);
-    setFormData({ ...card });
+
+    const mappedServiceItems = ((card as any).the_ban_hang_ct || []).map((ct: any) => ({
+      id: ct.dich_vu_id || ct.san_pham_vat_tu_id || Math.random().toString(),
+      ten_dich_vu: ct.san_pham || 'Dịch vụ',
+      gia_ban: ct.gia_ban || 0,
+      so_luong: ct.so_luong || 1
+    }));
+    const mappedIds = mappedServiceItems.map((item: any) => item.id).filter((id: any) => !id.startsWith('0.'));
+
+    setFormData({ 
+      ...card,
+      dich_vu_ids: mappedIds,
+      service_items: mappedServiceItems
+    } as any);
     setIsModalOpen(true);
   };
 
@@ -158,9 +184,9 @@ const SalesCardManagementPage: React.FC = () => {
     setFormData({});
   };
 
-  const handleSubmit = async (formDataHeader: Partial<SalesCard & { dich_vu_ids?: string[], service_items?: { id: string, ten_dich_vu: string, gia_ban: number }[] }>) => {
+  const handleSubmit = async (formDataHeader: Partial<SalesCard & { dich_vu_ids?: string[], service_items?: { id: string, ten_dich_vu: string, gia_ban: number, so_luong?: number }[] }>) => {
     try {
-      const { khach_hang, nhan_su, dich_vu, dich_vu_ids, ...cleanData } = formDataHeader as any;
+      const { khach_hang, nhan_su, dich_vu, dich_vu_ids, service_items, ...cleanData } = formDataHeader as any;
       
       // Sanitize date fields to avoid "invalid input syntax for type date" error in Supabase
       if (cleanData.ngay_nhac_thay_dau === '') cleanData.ngay_nhac_thay_dau = null;
@@ -241,8 +267,8 @@ const SalesCardManagementPage: React.FC = () => {
     if (!editingCard) return;
     
     try {
-      const items = data.service_items || [];
-      const totalAmount = items.reduce((sum: number, item: any) => sum + (item.gia_ban || 0), 0);
+      const items = (data.service_items && data.service_items.length > 0) ? data.service_items : (data.the_ban_hang_ct || []);
+      const totalAmount = items.reduce((sum: number, item: any) => sum + ((item.gia_ban || 0) * (item.so_luong || 1)), 0);
       
       if (totalAmount <= 0) {
         alert('Cảnh báo: Đơn hàng chưa có dịch vụ hoặc tổng tiền bằng 0.');
