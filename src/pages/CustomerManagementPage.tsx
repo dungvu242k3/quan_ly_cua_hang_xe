@@ -1,20 +1,26 @@
-import { 
-  Search, Plus, 
-  Edit2, Trash2, 
-  History, User,
-  ArrowLeft, ChevronDown, List, 
-  Building2, Download, Upload
+import { clsx } from 'clsx';
+import {
+  ArrowLeft,
+  Building2,
+  ChevronDown,
+  Download,
+  Edit2,
+  History,
+  List,
+  Plus,
+  Search,
+  Trash2,
+  Upload,
+  User
 } from 'lucide-react';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
-import { getCustomersPaginated, deleteCustomer, bulkUpsertCustomers, bulkDeleteCustomers } from '../data/customerData';
-import type { KhachHang } from '../data/customerData';
-import CustomerFormModal from '../components/CustomerFormModal';
 import CustomerDetailsModal from '../components/CustomerDetailsModal';
+import CustomerFormModal from '../components/CustomerFormModal';
 import Pagination from '../components/Pagination';
-import { clsx } from 'clsx';
-import { useCallback, useMemo } from 'react';
+import type { KhachHang } from '../data/customerData';
+import { bulkDeleteCustomers, bulkUpsertCustomers, deleteCustomer, getCustomersPaginated } from '../data/customerData';
 
 const CustomerManagementPage: React.FC = () => {
   const navigate = useNavigate();
@@ -36,7 +42,7 @@ const CustomerManagementPage: React.FC = () => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<KhachHang | null>(null);
-  
+
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<KhachHang | null>(null);
 
@@ -298,30 +304,30 @@ const CustomerManagementPage: React.FC = () => {
     <div className="w-full flex-1 animate-in fade-in slide-in-from-bottom-4 duration-500 text-muted-foreground font-sans">
       <div className="space-y-4">
         {/* Toolbar */}
-        <div className="bg-card p-3 rounded-lg border border-border shadow-sm flex flex-wrap items-center justify-between gap-4" ref={dropdownRef}>
-          <div className="flex items-center gap-3 flex-1 flex-wrap">
+        <div className="bg-card p-3 rounded-lg border border-border shadow-sm flex flex-wrap items-center gap-2 sm:gap-4 justify-between" ref={dropdownRef}>
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             <button onClick={() => navigate(-1)} className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded text-[13px] text-muted-foreground hover:bg-accent transition-colors">
               <ArrowLeft size={18} /> Quay lại
             </button>
-            <div className="relative w-full sm:w-[250px]">
+            <div className="relative w-[180px] sm:w-[250px]">
               <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60">
-                <Search size={18} />
+                <Search className="size-4 sm:size-[18px]" />
               </div>
               <input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-1.5 border border-border rounded text-[13px] focus:ring-1 focus:ring-primary focus:border-primary placeholder-slate-400 outline-none"
-                placeholder="Tìm tên khách, số điện thoại, biển số..."
+                className="w-full pl-9 pr-4 py-1.5 border border-border rounded text-[11px] sm:text-[13px] focus:ring-1 focus:ring-primary focus:border-primary placeholder-slate-400 outline-none"
+                placeholder="Tìm khách, SĐT, biển số..."
                 type="text"
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-1 custom-scrollbar-hide">
               {/* Dept Dropdown */}
-              <div className="relative">
+              <div className="relative shrink-0">
                 <button onClick={() => toggleDropdown('dept')} className="flex items-center gap-2 px-3 py-1.5 border border-border rounded text-[13px] text-muted-foreground min-w-[140px] justify-between bg-card hover:bg-accent">
-                  <div className="flex items-center gap-2"><Building2 size={18} />Chi nhánh</div>
-                  <ChevronDown size={18} />
+                  <div className="flex items-center gap-2 shrink-0"><Building2 size={18} />Chi nhánh</div>
+                  <ChevronDown size={18} className="shrink-0" />
                 </button>
                 {openDropdown === 'dept' && (
                   <div className="absolute top-10 left-0 z-50 min-w-[200px] bg-card border border-border rounded shadow-lg overflow-hidden animate-in fade-in zoom-in-95 duration-100">
@@ -353,10 +359,10 @@ const CustomerManagementPage: React.FC = () => {
               </div>
 
               {/* Cycle Dropdown */}
-              <div className="relative">
+              <div className="relative shrink-0">
                 <button onClick={() => toggleDropdown('cycle')} className="flex items-center gap-2 px-3 py-1.5 border border-border rounded text-[13px] text-muted-foreground min-w-[120px] justify-between bg-card hover:bg-accent">
-                  <div className="flex items-center gap-2"><History size={18} />Chu kỳ</div>
-                  <ChevronDown size={18} />
+                  <div className="flex items-center gap-2 shrink-0"><History size={18} />Chu kỳ</div>
+                  <ChevronDown size={18} className="shrink-0" />
                 </button>
                 {openDropdown === 'cycle' && (
                   <div className="absolute top-10 left-0 z-50 min-w-[160px] bg-card border border-border rounded shadow-lg overflow-hidden animate-in fade-in zoom-in-95 duration-100">
@@ -386,11 +392,18 @@ const CustomerManagementPage: React.FC = () => {
                   </div>
                 )}
               </div>
+
+              <button
+                onClick={() => handleOpenModal()}
+                className="bg-primary hover:bg-primary/90 text-white px-3 py-1 sm:px-5 sm:py-1.5 rounded flex items-center gap-1.5 text-[12px] sm:text-[14px] font-semibold transition-colors shrink-0 shadow-sm"
+              >
+                <Plus className="size-4 sm:size-5" /> Thêm mới
+              </button>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="relative">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            <div className="relative shrink-0">
               <button
                 onClick={() => toggleDropdown('columns')}
                 className={clsx(
@@ -427,70 +440,176 @@ const CustomerManagementPage: React.FC = () => {
                 </div>
               )}
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleDeleteAll}
-                className="flex items-center gap-2 px-3 py-1.5 border border-destructive/20 rounded text-[13px] text-destructive hover:bg-destructive/10 transition-colors font-medium bg-card"
-                title="Xóa tất cả khách hàng"
-              >
-                <Trash2 size={18} />
-                <span>Xóa tất cả</span>
-              </button>
-
-              <button
-                onClick={handleDownloadTemplate}
-                className="flex items-center gap-2 px-3 py-1.5 border border-border rounded text-[13px] text-muted-foreground hover:bg-accent transition-colors font-medium"
-                title="Tải mẫu Excel"
-              >
-                <Download size={18} />
-                <span>Tải mẫu</span>
-              </button>
-              <div className="relative">
-                <button
-                  onClick={() => document.getElementById('excel-import')?.click()}
-                  className="flex items-center gap-2 px-3 py-1.5 border border-border rounded text-[13px] text-muted-foreground hover:bg-accent transition-colors font-medium"
-                  title="Nhập khách hàng từ file Excel"
-                >
-                  <Upload size={18} />
-                  <span>Nhập Excel</span>
-                </button>
-                <input
-                  id="excel-import"
-                  type="file"
-                  accept=".xlsx, .xls"
-                  className="hidden"
-                  onChange={handleImportExcel}
-                />
-              </div>
-            </div>
 
             <button
-              onClick={() => handleOpenModal()}
-              className="bg-primary hover:bg-primary/90 text-white px-5 py-1.5 rounded flex items-center gap-2 text-[14px] font-semibold transition-colors"
+              onClick={handleDeleteAll}
+              className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 border border-destructive/20 rounded text-[11px] sm:text-[13px] text-destructive hover:bg-destructive/10 transition-colors font-medium bg-card shrink-0"
+              title="Xóa tất cả khách hàng"
             >
-              <Plus size={20} /> Thêm mới
+              <Trash2 className="size-4 sm:size-[18px]" />
+              <span>Xóa tất cả</span>
             </button>
+
+            <button
+              onClick={handleDownloadTemplate}
+              className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 border border-border rounded text-[11px] sm:text-[13px] text-muted-foreground hover:bg-accent transition-colors font-medium shrink-0"
+              title="Tải mẫu Excel"
+            >
+              <Download className="size-4 sm:size-[18px]" />
+              <span>Tải mẫu</span>
+            </button>
+
+            <div className="relative shrink-0">
+              <button
+                onClick={() => document.getElementById('excel-import')?.click()}
+                className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 border border-border rounded text-[11px] sm:text-[13px] text-muted-foreground hover:bg-accent transition-colors font-medium"
+                title="Nhập khách hàng từ file Excel"
+              >
+                <Upload className="size-4 sm:size-[18px]" />
+                <span>Nhập Excel</span>
+              </button>
+              <input
+                id="excel-import"
+                type="file"
+                accept=".xlsx, .xls"
+                className="hidden"
+                onChange={handleImportExcel}
+              />
+            </div>
           </div>
         </div>
 
-        {/* Data Table */}
-        <div className="bg-card rounded-lg border border-border shadow-sm overflow-hidden">
+        {/* Mobile View (Cards) */}
+        <div className="grid grid-cols-1 gap-4 md:hidden">
+          {loading ? (
+            Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="bg-card p-4 rounded-xl border border-border animate-pulse space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-muted rounded-full" />
+                  <div className="space-y-2">
+                    <div className="h-4 bg-muted rounded w-24" />
+                    <div className="h-3 bg-muted rounded w-32" />
+                  </div>
+                </div>
+                <div className="h-20 bg-muted rounded-lg" />
+              </div>
+            ))
+          ) : displayCustomers.length > 0 ? (
+            displayCustomers.map(customer => {
+              const isDue = customer.ngay_thay_dau ? new Date(customer.ngay_thay_dau) <= today : false;
+              const formatDateMobile = (dateStr?: string) => {
+                if (!dateStr) return '—';
+                const d = new Date(dateStr);
+                return isNaN(d.getTime()) ? dateStr : d.toLocaleDateString('vi-VN');
+              };
+
+              return (
+                <div key={customer.id} className="bg-card p-4 rounded-xl border border-border shadow-sm space-y-4 relative group hover:border-primary/30 transition-all">
+                  {/* Row 1: Identity & Status */}
+                  <div className="flex items-center justify-between border-b border-border/50 pb-2">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary overflow-hidden border border-border shadow-sm">
+                        {customer.anh ? (
+                          <img src={customer.anh} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <User size={20} />
+                        )}
+                      </div>
+                      <div className="flex flex-col">
+                        <button onClick={() => handleOpenDetails(customer)} className="text-[15px] font-black text-foreground hover:text-primary transition-colors text-left leading-tight">
+                          {customer.ho_va_ten}
+                        </button>
+                        <span className="text-[11px] font-mono text-muted-foreground uppercase opacity-60">
+                          {customer.ma_khach_hang || customer.id.slice(0, 8)}
+                        </span>
+                      </div>
+                    </div>
+                    {isDue && (
+                      <span className="px-2 py-1 bg-red-100 text-red-600 rounded-full text-[10px] font-black animate-pulse flex items-center gap-1">
+                        ⚠️ CẦN THAY DẦU
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Row 2: Contact */}
+                  <div className="flex items-center gap-2 text-[14px] text-muted-foreground font-medium">
+                    <span className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500">📱</span>
+                    {customer.so_dien_thoai || 'Chưa cập nhật'}
+                  </div>
+
+                  {/* Row 3: Vehicle Specs (Plate / KM / Cycle) */}
+                  <div className="bg-muted/40 p-3 rounded-lg border border-border/40 grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <div className="text-[10px] uppercase font-bold text-muted-foreground/60">Biển số xe</div>
+                      <span className={clsx(
+                        "px-2 py-1 rounded text-[12px] font-black border block w-fit",
+                        customer.bien_so_xe === 'Xe Chưa Biển' ? "bg-amber-50 text-amber-600 border-amber-100" : "bg-blue-50 text-blue-600 border-blue-100 uppercase"
+                      )}>
+                        {customer.bien_so_xe}
+                      </span>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="text-[10px] uppercase font-bold text-muted-foreground/60">Quãng đường</div>
+                      <div className="text-[14px] font-bold text-foreground">
+                        {customer.so_km?.toLocaleString()} <span className="text-[10px] font-normal opacity-60">Km</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Row 4: Timeline */}
+                  <div className="grid grid-cols-2 gap-2 text-[12px]">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-muted-foreground/60 text-[10px] uppercase font-bold">Ngày đăng ký:</span>
+                      <span className="font-medium">{formatDateMobile(customer.ngay_dang_ky)}</span>
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-muted-foreground/60 text-[10px] uppercase font-bold">Lần thay dầu tới:</span>
+                      <span className={clsx("font-black", isDue ? "text-red-600" : "text-primary")}>
+                        {formatDateMobile(customer.ngay_thay_dau)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Actions for Mobile Card */}
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/30 overflow-x-auto no-scrollbar">
+                    <button onClick={() => handleOpenDetails(customer)} className="flex items-center gap-1.5 px-3 py-1.5 text-blue-600 hover:bg-blue-50 rounded-lg text-[12px] font-bold border border-blue-100 transition-colors shrink-0">
+                      <List size={14} /> Chi tiết
+                    </button>
+                    <button onClick={() => handleOpenModal(customer)} className="flex items-center gap-1.5 px-3 py-1.5 text-primary hover:bg-primary/10 rounded-lg text-[12px] font-bold border border-primary/20 transition-colors shrink-0">
+                      <Edit2 size={14} /> Sửa
+                    </button>
+                    <button onClick={() => handleDelete(customer.id)} className="flex items-center gap-1.5 px-3 py-1.5 text-destructive hover:bg-destructive/10 rounded-lg text-[12px] font-bold border border-destructive/20 transition-colors shrink-0">
+                      <Trash2 size={14} /> Xóa
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div className="bg-card p-12 text-center text-muted-foreground border border-border border-dashed rounded-xl">
+              Chưa có khách hàng nào được tìm thấy.
+            </div>
+          )}
+        </div>
+
+        {/* Desktop Table View */}
+        <div className="hidden md:block bg-card rounded-lg border border-border shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-muted border-b border-border text-muted-foreground text-[12px] font-bold uppercase tracking-wider">
-                  <th className="px-4 py-3 w-10 text-center"><input className="rounded border-border text-primary size-4" type="checkbox" /></th>
-                  {visibleColumns.includes('ma_khach_hang') && <th className="px-4 py-3 font-semibold">Mã</th>}
-                  {visibleColumns.includes('anh') && <th className="px-4 py-3 font-semibold">Ảnh</th>}
-                  {visibleColumns.includes('ho_va_ten') && <th className="px-4 py-3 font-semibold">Họ và tên</th>}
-                  {visibleColumns.includes('so_dien_thoai') && <th className="px-4 py-3 font-semibold">Số điện thoại</th>}
-                  {visibleColumns.includes('dia_chi_hien_tai') && <th className="px-4 py-3 font-semibold">Địa chỉ</th>}
-                  {visibleColumns.includes('bien_so_xe') && <th className="px-4 py-3 font-semibold">Biển số</th>}
-                  {visibleColumns.includes('ngay_dang_ky') && <th className="px-4 py-3 font-semibold">Ngày đăng ký</th>}
-                  {visibleColumns.includes('so_km') && <th className="px-4 py-3 font-semibold">Số KM</th>}
-                  {visibleColumns.includes('so_ngay_thay_dau') && <th className="px-4 py-3 font-semibold">Chu kỳ</th>}
-                  {visibleColumns.includes('ngay_thay_dau') && <th className="px-4 py-3 font-semibold">Ngày thay dầu</th>}
-                  {visibleColumns.includes('actions') && <th className="px-4 py-3 text-center font-semibold">Thao tác</th>}
+                <tr className="bg-muted border-b border-border text-muted-foreground text-[10px] font-bold uppercase tracking-tighter">
+                  <th className="px-2 py-1 w-6 text-center"><input className="rounded border-border text-primary size-3" type="checkbox" /></th>
+                  {visibleColumns.includes('ma_khach_hang') && <th className="px-2 py-1 font-semibold">Mã</th>}
+                  {visibleColumns.includes('anh') && <th className="px-2 py-1 font-semibold">Ảnh</th>}
+                  {visibleColumns.includes('ho_va_ten') && <th className="px-2 py-1 font-semibold">Họ tên</th>}
+                  {visibleColumns.includes('so_dien_thoai') && <th className="px-2 py-1 font-semibold">SĐT</th>}
+                  {visibleColumns.includes('dia_chi_hien_tai') && <th className="px-2 py-1 font-semibold">Địa chỉ</th>}
+                  {visibleColumns.includes('bien_so_xe') && <th className="px-2 py-1 font-semibold">Biển</th>}
+                  {visibleColumns.includes('ngay_dang_ky') && <th className="px-2 py-1 font-semibold">Ngày ĐK</th>}
+                  {visibleColumns.includes('so_km') && <th className="px-2 py-1 font-semibold">KM</th>}
+                  {visibleColumns.includes('so_ngay_thay_dau') && <th className="px-2 py-1 font-semibold">CK</th>}
+                  {visibleColumns.includes('ngay_thay_dau') && <th className="px-2 py-1 font-semibold">Lần tới</th>}
+                  {visibleColumns.includes('actions') && <th className="px-2 py-1 text-center font-semibold">Lệnh</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-[13px]">
@@ -499,15 +618,15 @@ const CustomerManagementPage: React.FC = () => {
                     <SkeletonRow key={i} visibleColumns={visibleColumns} />
                   ))
                 ) : displayCustomers.map(customer => (
-                    <CustomerTableRow 
-                      key={customer.id} 
-                      customer={customer} 
-                      visibleColumns={visibleColumns}
-                      onEdit={handleOpenModal}
-                      onDelete={handleDelete}
-                      onOpenDetails={handleOpenDetails}
-                      today={today}
-                    />
+                  <CustomerTableRow
+                    key={customer.id}
+                    customer={customer}
+                    visibleColumns={visibleColumns}
+                    onEdit={handleOpenModal}
+                    onDelete={handleDelete}
+                    onOpenDetails={handleOpenDetails}
+                    today={today}
+                  />
                 ))}
                 {!loading && displayCustomers.length === 0 && (
                   <tr>
@@ -519,23 +638,23 @@ const CustomerManagementPage: React.FC = () => {
               </tbody>
             </table>
           </div>
-          <Pagination
-            currentPage={currentPage}
-            pageSize={pageSize}
-            totalCount={totalCount}
-            onPageChange={setCurrentPage}
-            onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
-            loading={loading}
-          />
         </div>
+
+        <Pagination
+          currentPage={currentPage}
+          pageSize={pageSize}
+          totalCount={totalCount}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+        />
       </div>
 
       {/* Modal - Add/Edit Customer */}
-      <CustomerFormModal 
-        isOpen={isModalOpen} 
-        onClose={handleCloseModal} 
-        onSuccess={loadCustomers} 
-        customer={editingCustomer} 
+      <CustomerFormModal
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        onSuccess={loadCustomers}
+        customer={editingCustomer}
       />
 
       {/* Modal - Customer Details & History */}
@@ -558,7 +677,7 @@ const CustomerTableRow: React.FC<{
   today: Date
 }> = React.memo(({ customer, visibleColumns, onEdit, onDelete, onOpenDetails, today }) => {
   const isCầnThayDầu = customer.ngay_thay_dau ? new Date(customer.ngay_thay_dau) <= today : false;
-  
+
   const formatDate = (dateStr: string | undefined) => {
     if (!dateStr) return '—';
     try {
@@ -568,68 +687,67 @@ const CustomerTableRow: React.FC<{
   };
 
   return (
-    <tr className="hover:bg-muted/80 transition-colors">
-      <td className="px-4 py-4 text-center"><input className="rounded border-border text-primary size-4" type="checkbox" /></td>
-      {visibleColumns.includes('ma_khach_hang') && <td className="px-4 py-4 font-mono text-[11px] text-muted-foreground">{customer.ma_khach_hang || customer.id.slice(0, 8)}</td>}
+    <tr className="hover:bg-muted/80 transition-colors border-b border-slate-50 last:border-0 h-8">
+      <td className="px-2 py-1 text-center"><input className="rounded border-border text-primary size-3" type="checkbox" /></td>
+      {visibleColumns.includes('ma_khach_hang') && <td className="px-2 py-1 font-mono text-[9px] text-muted-foreground/50 uppercase">{customer.ma_khach_hang || customer.id.slice(0, 6)}</td>}
       {visibleColumns.includes('anh') && (
-        <td className="px-4 py-4">
-          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary overflow-hidden border border-border shadow-sm">
+        <td className="px-2 py-1">
+          <div className="w-6 h-6 rounded bg-primary/10 flex items-center justify-center text-primary overflow-hidden border border-border shadow-sm">
             {customer.anh ? (
               <img src={customer.anh} alt="" className="w-full h-full object-cover border-none" loading="lazy" />
             ) : (
-              <User size={20} />
+              <User size={12} />
             )}
           </div>
         </td>
       )}
       {visibleColumns.includes('ho_va_ten') && (
-        <td className="px-4 py-4 font-semibold text-foreground whitespace-nowrap">
-          <button onClick={() => onOpenDetails(customer)} className="text-primary hover:underline hover:text-primary/80 transition-all text-left">
+        <td className="px-2 py-1 font-bold text-foreground whitespace-nowrap text-[11px]">
+          <button onClick={() => onOpenDetails(customer)} className="text-primary hover:underline transition-all text-left">
             {customer.ho_va_ten}
           </button>
         </td>
       )}
-      {visibleColumns.includes('so_dien_thoai') && <td className="px-4 py-4 text-muted-foreground whitespace-nowrap">{customer.so_dien_thoai}</td>}
+      {visibleColumns.includes('so_dien_thoai') && <td className="px-2 py-1 text-muted-foreground/80 whitespace-nowrap text-[11px] tabular-nums">{customer.so_dien_thoai}</td>}
       {visibleColumns.includes('dia_chi_hien_tai') && (
-        <td className="px-4 py-4 text-muted-foreground text-[12px] truncate max-w-[200px]" title={customer.dia_chi_hien_tai}>
+        <td className="px-2 py-1 text-muted-foreground/70 text-[10px] truncate max-w-[120px]" title={customer.dia_chi_hien_tai}>
           {customer.dia_chi_hien_tai || '—'}
         </td>
       )}
       {visibleColumns.includes('bien_so_xe') && (
-        <td className="px-4 py-4">
+        <td className="px-2 py-1">
           <span className={clsx(
-            "px-2 py-0.5 rounded text-[11px] font-bold border",
+            "px-1 py-0 rounded text-[9px] font-black border tracking-tighter",
             customer.bien_so_xe === 'Xe Chưa Biển' ? "bg-amber-50 text-amber-600 border-amber-100" : "bg-blue-50 text-blue-600 border-blue-100 uppercase"
           )}>
             {customer.bien_so_xe}
           </span>
         </td>
       )}
-      {visibleColumns.includes('ngay_dang_ky') && <td className="px-4 py-4 text-muted-foreground whitespace-nowrap">{formatDate(customer.ngay_dang_ky)}</td>}
+      {visibleColumns.includes('ngay_dang_ky') && <td className="px-2 py-1 text-muted-foreground/60 whitespace-nowrap text-[10px]">{formatDate(customer.ngay_dang_ky)}</td>}
       {visibleColumns.includes('so_km') && (
-        <td className="px-4 py-4 font-bold text-foreground">
-          {customer.so_km?.toLocaleString()} <span className="font-normal text-muted-foreground text-[11px]">Km</span>
+        <td className="px-2 py-1 font-bold text-foreground text-[11px] tabular-nums">
+          {customer.so_km?.toLocaleString()} <span className="font-normal text-muted-foreground/50 text-[9px]">Km</span>
         </td>
       )}
-      {visibleColumns.includes('so_ngay_thay_dau') && <td className="px-4 py-4 text-center text-muted-foreground">{customer.so_ngay_thay_dau}</td>}
+      {visibleColumns.includes('so_ngay_thay_dau') && <td className="px-2 py-1 text-center text-muted-foreground/60 text-[11px]">{customer.so_ngay_thay_dau}</td>}
       {visibleColumns.includes('ngay_thay_dau') && (
-        <td className="px-4 py-4">
+        <td className="px-2 py-1">
           <div className="flex items-center gap-1">
-            <span className={clsx("font-medium", isCầnThayDầu ? "text-red-600 font-bold" : "text-muted-foreground")}>
+            <span className={clsx("font-bold text-[11px] tabular-nums", isCầnThayDầu ? "text-red-500" : "text-muted-foreground/80")}>
               {formatDate(customer.ngay_thay_dau)}
             </span>
-            {isCầnThayDầu && <span className="px-1 py-0.5 bg-red-100 text-red-600 rounded text-[9px] font-bold animate-pulse">!!!</span>}
           </div>
         </td>
       )}
       {visibleColumns.includes('actions') && (
-        <td className="px-4 py-4">
-          <div className="flex items-center justify-center gap-4">
-            <button onClick={(e) => { e.preventDefault(); onEdit(customer); }} className="text-primary hover:text-blue-700 transition-colors">
-              <Edit2 size={18} />
+        <td className="px-2 py-1">
+          <div className="flex items-center justify-center gap-2">
+            <button onClick={(e) => { e.preventDefault(); onEdit(customer); }} className="text-primary" title="Sửa">
+              <Edit2 size={14} />
             </button>
-            <button onClick={(e) => { e.preventDefault(); onDelete(customer.id); }} className="text-destructive hover:text-destructive/80 transition-colors">
-              <Trash2 size={18} />
+            <button onClick={(e) => { e.preventDefault(); onDelete(customer.id); }} className="text-destructive" title="Xóa">
+              <Trash2 size={14} />
             </button>
           </div>
         </td>

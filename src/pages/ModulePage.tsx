@@ -1,19 +1,32 @@
 import React from 'react';
 import { ModuleCard } from '../components/ui/ModuleCard';
-import { useLocation, useOutletContext, Outlet } from 'react-router-dom';
+import { useLocation, useOutletContext, Outlet, useNavigate } from 'react-router-dom';
 import { moduleData } from '../data/moduleData';
 import { sidebarMenu } from '../data/sidebarMenu';
 import { motion } from 'framer-motion';
+import { useEffect } from 'react';
 
 const ModulePage: React.FC = () => {
-  const { globalSearch } = useOutletContext<{ globalSearch: string }>() || { globalSearch: '' };
+  const { globalSearch, setGlobalSearch } = useOutletContext<{ globalSearch: string; setGlobalSearch: (val: string) => void }>() || { globalSearch: '', setGlobalSearch: () => {} };
   const location = useLocation();
-  
   // Extract the base module path (e.g., "/ban-hang") correctly even for sub-routes
   const baseModulePath = `/${location.pathname.split('/')[1]}`;
-  
   const currentItem = sidebarMenu.find(item => item.path === baseModulePath);
   const data = moduleData[baseModulePath] || [];
+  const subModules = data.length > 0 ? data[0].items : [];
+  const navigate = useNavigate();
+
+  // Smart Redirection for Mobile:
+  // If on Mobile and at the root module path, jump directly to the first sub-page.
+  // PC users stay on the overview page to see the Cards (as requested).
+  useEffect(() => {
+    const isMobile = window.innerWidth < 1024;
+    const isRootModulePath = location.pathname === baseModulePath;
+    
+    if (isMobile && isRootModulePath && subModules.length > 0 && subModules[0].path) {
+      navigate(subModules[0].path, { replace: true });
+    }
+  }, [location.pathname, baseModulePath, subModules, navigate]);
 
   const isSubRoute = location.pathname !== currentItem?.path && location.pathname !== '/';
 
@@ -22,13 +35,11 @@ const ModulePage: React.FC = () => {
       className="animate-in fade-in duration-500 w-full flex flex-col h-full"
     >
       {/* Content Area */}
-      <div className="min-h-0">
-        {isSubRoute ? (
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 h-full">
-            <Outlet context={{ globalSearch }} />
-          </div>
-        ) : (
-          <div className="space-y-8 pb-8">
+      <div className="min-h-0 h-full">
+        <Outlet context={{ globalSearch, setGlobalSearch }} />
+        
+        {!isSubRoute && (
+          <div className="space-y-8 pb-8 animate-in fade-in duration-500">
             {data.map((section, idx) => {
               // Filter items by search query
               const filteredItems = section.items.filter(item => 
@@ -48,7 +59,7 @@ const ModulePage: React.FC = () => {
                     <div className="h-px flex-1 bg-border/60"></div>
                   </h2>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                     {filteredItems.map((item, itemIdx) => (
                       <ModuleCard key={itemIdx} {...item} layoutId={`func-${item.title}`} />
                     ))}

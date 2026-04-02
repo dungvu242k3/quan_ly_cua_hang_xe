@@ -110,7 +110,7 @@ interface TopbarProps {
   subModules: ModuleCardProps[];
 }
 
-const Topbar: React.FC<TopbarProps> = ({ 
+export const Topbar: React.FC<TopbarProps> = React.memo(({ 
   sidebarOpen, 
   setSidebarOpen, 
   globalSearch, 
@@ -180,7 +180,7 @@ const Topbar: React.FC<TopbarProps> = ({
     };
   });
 
-  const pageTitle = breadcrumbs.length > 0 ? breadcrumbs[breadcrumbs.length - 1].label : 'Trang chủ';
+
 
 
   useEffect(() => {
@@ -254,21 +254,37 @@ const Topbar: React.FC<TopbarProps> = ({
 
         {/* Unified Title & Switcher Container */}
         <div className="flex items-center gap-1.5 min-w-0 overflow-x-hidden py-1">
-          {/* Main Module Name (Hide if we have tabs to save space) */}
-          {subModules.length === 0 && (
-            <div className="flex items-center gap-1 shrink-0">
-              <span className="sm:inline-block hidden text-muted-foreground transition-colors mr-1">
+          {/* Breadcrumbs for PC (Home > Module > Page) */}
+          <div className={clsx(
+            "items-center gap-1.5 shrink-0 text-[11px] sm:text-[13px] font-medium text-muted-foreground",
+            subModules.length > 0 ? "hidden lg:flex" : "flex"
+          )}>
+            <div className="flex items-center gap-1.5">
+              <span className="flex items-center gap-1 hover:text-primary transition-colors cursor-pointer" onClick={() => navigate('/')}>
                 <Home size={13} />
+                <span className="hidden sm:inline">Trang chủ</span>
               </span>
-              <span className="text-[12px] sm:text-[14px] font-bold text-foreground whitespace-nowrap">
-                {pageTitle}
-              </span>
+              
+              {breadcrumbs.map((crumb, idx) => (
+                <React.Fragment key={crumb.path}>
+                  <ChevronRight size={10} className="opacity-40" />
+                  <span 
+                    className={clsx(
+                      "transition-colors",
+                      idx === breadcrumbs.length - 1 ? "font-bold text-foreground" : "hover:text-primary cursor-pointer"
+                    )}
+                    onClick={() => idx < breadcrumbs.length - 1 && navigate(crumb.path)}
+                  >
+                    {crumb.label}
+                  </span>
+                </React.Fragment>
+              ))}
             </div>
-          )}
+          </div>
 
-          {/* Inline Tabs */}
+          {/* Inline Tabs (Mobile only) */}
           {subModules.length > 0 && (
-            <div className="flex items-center h-7">
+            <div className="flex lg:hidden items-center h-7">
               <SubModuleSwitcher items={subModules} variant="tabs" />
             </div>
           )}
@@ -505,6 +521,6 @@ const Topbar: React.FC<TopbarProps> = ({
       </div>
     </header>
   );
-};
+});
 
 export default Topbar;

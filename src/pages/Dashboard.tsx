@@ -87,7 +87,7 @@ const Dashboard: React.FC = () => {
                     <div className="h-px flex-1 bg-border/60"></div>
                   </h2>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                     {filteredItems.map((item, itemIdx) => (
                       <ModuleCard key={itemIdx} {...item} layoutId={`func-${item.title}`} />
                     ))}
@@ -98,7 +98,7 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 lg:gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
           {dashboardModules.map((module, idx) => (
             <ActionCard
               key={idx}

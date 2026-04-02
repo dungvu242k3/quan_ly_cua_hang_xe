@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Calendar, Clock, History, Loader2, Plus, Save, ShoppingCart, Star, User, Wrench, X } from 'lucide-react';
+import { Calendar, Clock, History, Loader2, Plus, Save, ShoppingCart, User, Wrench, X } from 'lucide-react';
 import type { SalesCard } from '../data/salesCardData';
 import type { KhachHang } from '../data/customerData';
 import type { NhanSu } from '../data/personnelData';
@@ -257,29 +257,6 @@ const SalesCardFormModal: React.FC<{
                     </table>
                   </div>
                 )}
-              </div>
-
-              {/* Evaluation */}
-              <div className="space-y-1.5">
-                <label className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-                  <Star size={14} className="text-primary/70" />
-                  Đánh giá dịch vụ
-                </label>
-                <div className="flex gap-2">
-                  {['hài lòng', 'bình thường', 'không hài lòng'].map(opt => (
-                    <button
-                      key={opt} type="button" 
-                      onClick={() => !isReadOnly && setFormData(prev => ({ ...prev, danh_gia: opt }))}
-                      className={clsx(
-                        "flex-1 py-2 px-3 rounded-xl border text-[12px] font-bold transition-all capitalize",
-                        isReadOnly && "cursor-default",
-                        formData.danh_gia === opt ? "bg-primary text-white border-primary shadow-md" : "bg-muted/50 border-border text-muted-foreground hover:bg-muted"
-                      )}
-                    >
-                      {opt}
-                    </button>
-                  ))}
-                </div>
               </div>
 
               <InputField label="Số Km" name="so_km" value={formatNumber(formData.so_km)} onChange={handleInputChange} icon={History} placeholder="12.000" disabled={isReadOnly} />

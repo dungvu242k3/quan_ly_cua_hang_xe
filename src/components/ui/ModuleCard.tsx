@@ -27,7 +27,7 @@ const colorMap = {
   slate: 'bg-slate-500/10 text-slate-500',
 };
 
-export const ModuleCard: React.FC<ModuleCardProps> = ({
+export const ModuleCard: React.FC<ModuleCardProps> = React.memo(({
   icon: Icon,
   title,
   description,
@@ -48,37 +48,36 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
       layoutId={layoutId}
       onClick={handleClick}
       className={clsx(
-        "group flex items-center bg-card rounded-xl p-4 transition-all duration-300 border border-border hover:border-primary/30 hover:shadow-sm cursor-pointer hover:-translate-y-0.5",
+        "group flex items-center bg-card rounded-lg p-2.5 transition-all duration-300 border border-border hover:border-primary/30 hover:shadow-sm cursor-pointer hover:-translate-y-0.5",
         !path && "opacity-60 grayscale-[0.5] cursor-not-allowed hover:translate-y-0 hover:border-border"
       )}
     >
       <div 
         className={clsx(
-          "w-11 h-11 rounded-xl flex items-center justify-center shrink-0 mr-3 transition-transform group-hover:scale-110",
+          "w-9 h-9 rounded-lg flex items-center justify-center shrink-0 mr-2.5 transition-transform group-hover:scale-110",
           colorMap[colorScheme as keyof typeof colorMap]
         )}
       >
-        <Icon size={22} />
+        <Icon size={18} />
       </div>
       
-      <div className="flex-1 min-w-0 pr-2">
-        <h3 className="font-bold text-[14px] text-foreground mb-0.5 truncate transition-colors">
+      <div className="flex-1 min-w-0 pr-1.5">
+        <h3 className="font-bold text-[13px] text-foreground mb-0 truncate transition-colors">
           {title}
         </h3>
-        <p className="text-[12px] text-muted-foreground truncate leading-snug">
+        <p className="text-[11px] text-muted-foreground truncate leading-tight opacity-80">
           {description}
         </p>
       </div>
 
-      <div className="flex flex-col gap-3 shrink-0 text-muted-foreground/30" onClick={(e) => e.stopPropagation()}>
+      <div className="flex flex-col gap-2 shrink-0 text-muted-foreground/20" onClick={(e) => e.stopPropagation()}>
         <button className="hover:text-amber-500 transition-colors" title="Đánh dấu">
-          <Star size={15} />
+          <Star size={13} />
         </button>
         <button className="hover:text-primary transition-colors" title="Hướng dẫn sử dụng">
-          <HelpCircle size={15} />
+          <HelpCircle size={13} />
         </button>
       </div>
     </motion.div>
   );
-};
-
+});

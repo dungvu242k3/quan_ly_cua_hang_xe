@@ -12,15 +12,15 @@ import {
 import React, { useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
+import Pagination from '../components/Pagination';
+import SalesCardCTFormModal from '../components/SalesCardCTFormModal';
 import { getCustomers } from '../data/customerData';
 import type { SalesCardCT } from '../data/salesCardCTData';
-import { bulkUpsertSalesCardCTs, deleteSalesCardCT, getSalesCardCTsPaginated, deleteAllSalesCardCTs } from '../data/salesCardCTData';
-import Pagination from '../components/Pagination';
+import { bulkUpsertSalesCardCTs, deleteAllSalesCardCTs, deleteSalesCardCT, getSalesCardCTsPaginated } from '../data/salesCardCTData';
 import type { SalesCard } from '../data/salesCardData';
 import { getSalesCards } from '../data/salesCardData'; // Header cards
 import type { DichVu } from '../data/serviceData';
 import { bulkUpsertServices, getServices } from '../data/serviceData';
-import SalesCardCTFormModal from '../components/SalesCardCTFormModal';
 
 const SalesCardCTManagementPage: React.FC = () => {
   const navigate = useNavigate();
@@ -418,7 +418,7 @@ const SalesCardCTManagementPage: React.FC = () => {
               </tbody>
             </table>
           </div>
-          <Pagination 
+          <Pagination
             currentPage={currentPage}
             pageSize={pageSize}
             totalCount={totalCount}

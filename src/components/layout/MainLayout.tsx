@@ -19,6 +19,19 @@ const MainLayout: React.FC = () => {
     ['/thu-chi', '/dich-vu', '/cham-cong'].includes(location.pathname)
   );
 
+  // Extract submodules with memoization to prevent Topbar re-renders
+  const subModules = React.useMemo(() => 
+    moduleData[`/${location.pathname.split('/')[1]}`]?.flatMap(s => s.items) || [],
+    [location.pathname]
+  );
+
+  // Auto-close sidebar on mobile when navigating
+  React.useEffect(() => {
+    if (window.innerWidth < 1024 && sidebarOpen) {
+      setSidebarOpen(false);
+    }
+  }, [location.pathname, sidebarOpen]);
+
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
       {/* Sidebar - Hidden on focused data views */}
@@ -36,7 +49,7 @@ const MainLayout: React.FC = () => {
           setSidebarOpen={setSidebarOpen} 
           globalSearch={globalSearch}
           setGlobalSearch={setGlobalSearch}
-          subModules={moduleData[`/${location.pathname.split('/')[1]}`]?.flatMap(s => s.items) || []}
+          subModules={subModules}
         />
 
         {/* Scrollable Content */}

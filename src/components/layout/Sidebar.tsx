@@ -10,7 +10,7 @@ interface SidebarProps {
   setIsOpen: (isOpen: boolean) => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
+const Sidebar: React.FC<SidebarProps> = React.memo(({ isOpen, setIsOpen }) => {
   return (
     <>
       {/* Overlay - visible whenever sidebar is open ON MOBILE */}
@@ -72,9 +72,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
       </aside>
     </>
   );
-};
+});
 
-const NavItem = ({ item, onClick, isOpen }: { item: SidebarItem; onClick?: () => void; isOpen: boolean }) => {
+const NavItem = React.memo(({ item, onClick, isOpen }: { item: SidebarItem; onClick?: () => void; isOpen: boolean }) => {
   return (
     <NavLink
       to={item.path}
@@ -96,6 +96,6 @@ const NavItem = ({ item, onClick, isOpen }: { item: SidebarItem; onClick?: () =>
       <span className={clsx("transition-all duration-300", !isOpen && "opacity-0 w-0 hidden")}>{item.label}</span>
     </NavLink>
   );
-};
+});
 
 export default Sidebar;

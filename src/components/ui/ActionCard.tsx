@@ -42,28 +42,28 @@ export const ActionCard: React.FC<ActionCardProps> = ({
     >
       <motion.div
         layoutId={layoutId}
-        className="bg-card rounded-[24px] p-6 transition-all duration-300 hover:shadow-xl border border-border hover:border-primary/20 hover:-translate-y-1 h-full"
+        className="bg-card rounded-2xl p-4 transition-all duration-300 hover:shadow-lg border border-border hover:border-primary/20 hover:-translate-y-1 h-full"
       >
         {/* Hover Arrow Icon */}
-        <div className="absolute top-3 right-3 w-7 h-7 bg-primary/5 rounded-full flex items-center justify-center text-primary opacity-0 -translate-x-2 translate-y-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-0 group-hover:translate-y-0">
-          <ArrowUpRight size={16} strokeWidth={2.5} />
+        <div className="absolute top-2 right-2 w-6 h-6 bg-primary/5 rounded-full flex items-center justify-center text-primary opacity-0 -translate-x-1 translate-y-1 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-0 group-hover:translate-y-0">
+          <ArrowUpRight size={14} strokeWidth={2.5} />
         </div>
 
         <div className="flex flex-col items-center text-center h-full">
           <div
             className={clsx(
-              "w-16 h-16 rounded-[22px] flex items-center justify-center mb-5 transition-transform duration-300 group-hover:scale-110 shadow-sm",
+              "w-12 h-12 rounded-xl flex items-center justify-center mb-3 transition-transform duration-300 group-hover:scale-110 shadow-sm",
               colorMap[colorScheme as keyof typeof colorMap]
             )}
           >
-            <Icon size={30} strokeWidth={2} />
+            <Icon size={24} strokeWidth={2} />
           </div>
 
-          <h3 className="font-bold text-[17px] text-foreground mb-1.5 group-hover:text-primary transition-colors">
+          <h3 className="font-bold text-[15px] text-foreground mb-1 group-hover:text-primary transition-colors">
             {title}
           </h3>
 
-          <p className="text-[13px] text-muted-foreground leading-relaxed line-clamp-2 px-2">
+          <p className="text-[12px] text-muted-foreground leading-snug line-clamp-2 px-1 opacity-80">
             {description}
           </p>
         </div>
