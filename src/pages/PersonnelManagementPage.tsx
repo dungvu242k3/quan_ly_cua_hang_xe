@@ -429,7 +429,7 @@ const PersonnelManagementPage: React.FC = () => {
             </table>
           </div>
 
-          {/* Mobile Card List */}
+          {/* Mobile Card List - Compact Style */}
           <div className="md:hidden">
             {loading ? (
               <div className="px-4 py-12 text-center text-muted-foreground">
@@ -439,39 +439,88 @@ const PersonnelManagementPage: React.FC = () => {
             ) : personnel.length === 0 ? (
               <div className="px-4 py-8 text-center text-muted-foreground text-[13px]">Không có dữ liệu nhân sự.</div>
             ) : (
-              <div className="divide-y divide-border">
+              <div className="px-3 py-3 space-y-3">
                 {personnel.map(person => (
-                  <div key={person.id} className="p-4 flex items-start gap-3 hover:bg-muted/50 transition-colors">
-                    {/* Avatar */}
-                    <div className="w-11 h-11 rounded-full bg-primary/10 flex items-center justify-center text-primary overflow-hidden border border-border shadow-sm shrink-0">
-                      {person.hinh_anh ? (
-                        <img src={person.hinh_anh} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        <User size={20} />
-                      )}
+                  <div key={person.id} className="bg-card rounded-2xl p-3 border border-border/30 shadow-sm active:scale-[0.98] transition-transform cursor-pointer flex gap-3.5">
+                    {/* Large Avatar */}
+                    <div className="shrink-0">
+                      <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-primary/10 shadow-sm bg-primary/5 flex items-center justify-center text-primary">
+                        {person.hinh_anh ? (
+                          <img src={person.hinh_anh} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <User size={28} />
+                        )}
+                      </div>
                     </div>
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-semibold text-foreground text-[14px] truncate">{person.ho_ten}</span>
+                    {/* Card Content: 3 Lines + Actions */}
+                    <div className="flex-1 min-w-0 flex flex-col justify-center">
+                      {/* Line 1: Name + Phone + Badge */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-baseline gap-1.5 min-w-0">
+                          <h3 className="font-extrabold text-foreground text-sm truncate">{person.ho_ten}</h3>
+                          {person.sdt && (
+                            <span className="text-[11px] text-muted-foreground/80 font-medium whitespace-nowrap">· {person.sdt}</span>
+                          )}
+                        </div>
                         <span className={clsx(
-                          "px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0",
-                          person.vi_tri === 'quản lý' ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"
+                          "px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider shrink-0 ml-2",
+                          person.vi_tri === 'quản lý'
+                            ? "bg-amber-500/10 text-amber-700"
+                            : "bg-blue-500/10 text-blue-700"
                         )}>
                           {person.vi_tri}
                         </span>
                       </div>
-                      {person.email && <p className="text-[12px] text-muted-foreground truncate">{person.email}</p>}
-                      <div className="flex items-center gap-3 mt-1 text-[12px] text-muted-foreground">
-                        {person.sdt && <span>{person.sdt}</span>}
-                        <span className="text-[11px] opacity-70">{person.co_so}</span>
+
+                      {/* Line 2: Email + Position icon */}
+                      <div className="flex items-center gap-1.5 text-[11px] mt-1 text-muted-foreground font-medium min-w-0">
+                        <div className="flex items-center gap-1 truncate">
+                          <Briefcase size={14} className="text-primary shrink-0" />
+                          <span className="font-bold text-foreground truncate">{person.vi_tri}</span>
+                        </div>
+                        {person.email && (
+                          <>
+                            <span className="text-border">•</span>
+                            <div className="flex items-center gap-1 truncate">
+                              <Search size={14} className="text-muted-foreground/60 shrink-0" />
+                              <span className="truncate">{person.email}</span>
+                            </div>
+                          </>
+                        )}
                       </div>
-                    </div>
-                    {/* Actions */}
-                    <div className="flex items-center gap-2 shrink-0 pt-1">
-                      <button onClick={() => { setSelectedStatsPerson({ id: person.id, ho_ten: person.ho_ten }); setIsStatsModalOpen(true); }} className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors" title="Xem thống kê"><Eye size={16} /></button>
-                      <button onClick={() => handleOpenModal(person)} className="p-1.5 rounded-lg text-primary hover:bg-primary/10 transition-colors" title="Sửa"><Edit2 size={16} /></button>
-                      <button onClick={() => handleDelete(person.id)} className="p-1.5 rounded-lg text-destructive hover:bg-red-50 transition-colors" title="Xóa"><Trash2 size={16} /></button>
+
+                      {/* Line 3: Branch + More info */}
+                      <div className="flex items-center gap-1.5 text-[10px] mt-1 text-muted-foreground min-w-0">
+                        <div className="flex items-center gap-0.5 shrink-0">
+                          <Building2 size={12} className="text-muted-foreground/60" />
+                          <span className="font-semibold text-foreground">{person.co_so}</span>
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex items-center gap-2 mt-2.5 pt-2 border-t border-border/10">
+                        <button
+                          onClick={() => { setSelectedStatsPerson({ id: person.id, ho_ten: person.ho_ten }); setIsStatsModalOpen(true); }}
+                          className="flex items-center gap-1 px-2 py-1 bg-emerald-500/5 text-emerald-600 rounded-lg active:scale-95 transition-transform"
+                        >
+                          <Eye size={14} />
+                          <span className="text-[10px] font-bold">Thống kê</span>
+                        </button>
+                        <button
+                          onClick={() => handleOpenModal(person)}
+                          className="flex items-center gap-1 px-2 py-1 bg-primary/5 text-primary rounded-lg active:scale-95 transition-transform"
+                        >
+                          <Edit2 size={14} />
+                          <span className="text-[10px] font-bold">Sửa</span>
+                        </button>
+                        <button
+                          onClick={() => handleDelete(person.id)}
+                          className="flex items-center gap-1 px-2 py-1 bg-destructive/5 text-destructive rounded-lg active:scale-95 transition-transform ml-auto"
+                        >
+                          <Trash2 size={14} />
+                          <span className="text-[10px] font-bold">Xoá</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}

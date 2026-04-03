@@ -2,9 +2,12 @@ import { clsx } from 'clsx';
 import {
   ArrowLeft,
   Building2,
+  Calendar,
+  Car,
   ChevronDown,
   Download,
   Edit2,
+  Gauge,
   History,
   List,
   Plus,
@@ -479,114 +482,140 @@ const CustomerManagementPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Mobile View (Cards) */}
-        <div className="grid grid-cols-1 gap-4 md:hidden">
+        {/* Mobile View (Cards) - Compact Style */}
+        <div className="md:hidden">
           {loading ? (
-            Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="bg-card p-4 rounded-xl border border-border animate-pulse space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-muted rounded-full" />
-                  <div className="space-y-2">
-                    <div className="h-4 bg-muted rounded w-24" />
-                    <div className="h-3 bg-muted rounded w-32" />
+            <div className="px-3 py-3 space-y-3">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="bg-card rounded-2xl p-3 border border-border/30 animate-pulse flex gap-3.5">
+                  <div className="w-16 h-16 bg-muted rounded-xl shrink-0" />
+                  <div className="flex-1 space-y-2 py-1">
+                    <div className="h-4 bg-muted rounded w-3/4" />
+                    <div className="h-3 bg-muted rounded w-full" />
+                    <div className="h-3 bg-muted rounded w-1/2" />
                   </div>
                 </div>
-                <div className="h-20 bg-muted rounded-lg" />
-              </div>
-            ))
+              ))}
+            </div>
           ) : displayCustomers.length > 0 ? (
-            displayCustomers.map(customer => {
-              const isDue = customer.ngay_thay_dau ? new Date(customer.ngay_thay_dau) <= today : false;
-              const formatDateMobile = (dateStr?: string) => {
-                if (!dateStr) return '—';
-                const d = new Date(dateStr);
-                return isNaN(d.getTime()) ? dateStr : d.toLocaleDateString('vi-VN');
-              };
+            <div className="px-3 py-3 space-y-3">
+              {displayCustomers.map(customer => {
+                const isDue = customer.ngay_thay_dau ? new Date(customer.ngay_thay_dau) <= today : false;
+                const formatDateMobile = (dateStr?: string) => {
+                  if (!dateStr) return '—';
+                  const d = new Date(dateStr);
+                  return isNaN(d.getTime()) ? dateStr : d.toLocaleDateString('vi-VN');
+                };
 
-              return (
-                <div key={customer.id} className="bg-card p-3 rounded-xl border border-border shadow-sm space-y-2.5 relative group hover:border-primary/30 transition-all">
-                  {/* Row 1: Identity & Status */}
-                  <div className="flex items-center justify-between border-b border-border/50 pb-2">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary overflow-hidden border border-border shadow-sm">
+                return (
+                  <div key={customer.id} className="bg-card rounded-2xl p-3 border border-border/30 shadow-sm active:scale-[0.98] transition-transform cursor-pointer flex gap-3.5">
+                    {/* Large Avatar */}
+                    <div className="shrink-0">
+                      <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-primary/10 shadow-sm bg-primary/5 flex items-center justify-center text-primary">
                         {customer.anh ? (
                           <img src={customer.anh} alt="" className="w-full h-full object-cover" />
                         ) : (
-                          <User size={16} />
+                          <User size={28} />
                         )}
                       </div>
-                      <div className="flex flex-col">
-                        <button onClick={() => handleOpenDetails(customer)} className="text-[13px] font-black text-foreground hover:text-primary transition-colors text-left leading-tight">
-                          {customer.ho_va_ten}
+                    </div>
+                    {/* Card Content: 3 Lines + Actions */}
+                    <div className="flex-1 min-w-0 flex flex-col justify-center">
+                      {/* Line 1: Name + Phone + Due Badge */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-baseline gap-1.5 min-w-0">
+                          <h3 className="font-extrabold text-foreground text-sm truncate">{customer.ho_va_ten}</h3>
+                          {customer.so_dien_thoai && (
+                            <span className="text-[11px] text-muted-foreground/80 font-medium whitespace-nowrap">· {customer.so_dien_thoai}</span>
+                          )}
+                        </div>
+                        {isDue ? (
+                          <span className="bg-red-500/10 text-red-600 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider shrink-0 ml-2 animate-pulse">
+                            Thay dầu
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground/50 text-[8px] font-bold uppercase tracking-wider shrink-0 ml-2">
+                            {customer.ma_khach_hang || customer.id.slice(0, 6)}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Line 2: Plate + KM + Address */}
+                      <div className="flex items-center gap-1.5 text-[11px] mt-1 text-muted-foreground font-medium min-w-0">
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Car size={14} className="text-primary" />
+                          <span className={clsx(
+                            "font-bold",
+                            customer.bien_so_xe === 'Xe Chưa Biển' ? "text-amber-600" : "text-foreground uppercase"
+                          )}>{customer.bien_so_xe}</span>
+                        </div>
+                        <span className="text-border">•</span>
+                        <div className="flex items-center gap-0.5 shrink-0 text-primary font-bold">
+                          <Gauge size={14} />
+                          <span>{customer.so_km?.toLocaleString()} km</span>
+                        </div>
+                        {customer.dia_chi_hien_tai && (
+                          <>
+                            <span className="text-border">•</span>
+                            <div className="flex items-center gap-1 truncate">
+                              <Building2 size={14} className="text-muted-foreground/60 shrink-0" />
+                              <span className="truncate">{customer.dia_chi_hien_tai}</span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Line 3: Dates + Cycle */}
+                      <div className="flex items-center gap-1.5 text-[10px] mt-1 text-muted-foreground min-w-0">
+                        <div className="flex items-center gap-0.5 shrink-0">
+                          <Calendar size={12} className="text-muted-foreground/60" />
+                          <span className="font-semibold text-foreground">ĐK: {formatDateMobile(customer.ngay_dang_ky)}</span>
+                        </div>
+                        <span className="text-border opacity-40">•</span>
+                        <div className="flex items-center gap-0.5 shrink-0">
+                          <History size={12} className="text-muted-foreground/60" />
+                          <span>{customer.so_ngay_thay_dau} ngày</span>
+                        </div>
+                        <span className="text-border opacity-40">•</span>
+                        <div className="flex items-center gap-0.5 shrink-0">
+                          <Calendar size={12} className={isDue ? "text-red-500" : "text-muted-foreground/60"} />
+                          <span className={clsx("font-bold", isDue ? "text-red-600" : "text-primary")}>
+                            {formatDateMobile(customer.ngay_thay_dau)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex items-center gap-2 mt-2.5 pt-2 border-t border-border/10">
+                        <button
+                          onClick={() => handleOpenDetails(customer)}
+                          className="flex items-center gap-1 px-2 py-1 bg-blue-500/5 text-blue-600 rounded-lg active:scale-95 transition-transform"
+                        >
+                          <List size={14} />
+                          <span className="text-[10px] font-bold">Chi tiết</span>
                         </button>
-                        <span className="text-[10px] font-mono text-muted-foreground uppercase opacity-60">
-                          {customer.ma_khach_hang || customer.id.slice(0, 8)}
-                        </span>
-                      </div>
-                    </div>
-                    {isDue && (
-                      <span className="px-1.5 py-0.5 bg-red-100 text-red-600 rounded-full text-[9px] font-black animate-pulse flex items-center gap-1">
-                        ⚠️ THAY DẦU
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Row 2: Contact */}
-                  <div className="flex items-center gap-2 text-[12px] text-muted-foreground font-medium">
-                    <span className="text-slate-400">📱</span>
-                    {customer.so_dien_thoai || 'Chưa cập nhật'}
-                  </div>
-
-                  {/* Row 3: Vehicle Specs */}
-                  <div className="bg-muted/40 p-2 rounded-lg border border-border/40 grid grid-cols-2 gap-2">
-                    <div>
-                      <div className="text-[9px] uppercase font-bold text-muted-foreground/60 mb-0.5">Biển số xe</div>
-                      <span className={clsx(
-                        "px-1.5 py-0.5 rounded text-[10px] font-black border block w-fit",
-                        customer.bien_so_xe === 'Xe Chưa Biển' ? "bg-amber-50 text-amber-600 border-amber-100" : "bg-blue-50 text-blue-600 border-blue-100 uppercase"
-                      )}>
-                        {customer.bien_so_xe}
-                      </span>
-                    </div>
-                    <div>
-                      <div className="text-[9px] uppercase font-bold text-muted-foreground/60 mb-0.5">Quãng đường</div>
-                      <div className="text-[12px] font-bold text-foreground">
-                        {customer.so_km?.toLocaleString()} <span className="text-[9px] font-normal opacity-60">Km</span>
+                        <button
+                          onClick={() => handleOpenModal(customer)}
+                          className="flex items-center gap-1 px-2 py-1 bg-primary/5 text-primary rounded-lg active:scale-95 transition-transform"
+                        >
+                          <Edit2 size={14} />
+                          <span className="text-[10px] font-bold">Sửa</span>
+                        </button>
+                        <button
+                          onClick={() => handleDelete(customer.id)}
+                          className="flex items-center gap-1 px-2 py-1 bg-destructive/5 text-destructive rounded-lg active:scale-95 transition-transform ml-auto"
+                        >
+                          <Trash2 size={14} />
+                          <span className="text-[10px] font-bold">Xóa</span>
+                        </button>
                       </div>
                     </div>
                   </div>
-
-                  {/* Row 4: Timeline */}
-                  <div className="grid grid-cols-2 gap-2 text-[11px]">
-                    <div>
-                      <span className="text-muted-foreground/60 text-[9px] uppercase font-bold">Ngày ĐK: </span>
-                      <span className="font-medium">{formatDateMobile(customer.ngay_dang_ky)}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground/60 text-[9px] uppercase font-bold">Thay dầu: </span>
-                      <span className={clsx("font-black", isDue ? "text-red-600" : "text-primary")}>
-                        {formatDateMobile(customer.ngay_thay_dau)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center justify-end gap-1.5 pt-1.5 border-t border-border/30">
-                    <button onClick={() => handleOpenDetails(customer)} className="flex items-center gap-1 px-2 py-1 text-blue-600 hover:bg-blue-50 rounded-lg text-[11px] font-bold border border-blue-100 transition-colors shrink-0">
-                      <List size={12} /> Chi tiết
-                    </button>
-                    <button onClick={() => handleOpenModal(customer)} className="flex items-center gap-1 px-2 py-1 text-primary hover:bg-primary/10 rounded-lg text-[11px] font-bold border border-primary/20 transition-colors shrink-0">
-                      <Edit2 size={12} /> Sửa
-                    </button>
-                    <button onClick={() => handleDelete(customer.id)} className="flex items-center gap-1 px-2 py-1 text-destructive hover:bg-destructive/10 rounded-lg text-[11px] font-bold border border-destructive/20 transition-colors shrink-0">
-                      <Trash2 size={12} /> Xóa
-                    </button>
-                  </div>
-                </div>
-              );
-            })
+                );
+              })}
+            </div>
           ) : (
-            <div className="bg-card p-12 text-center text-muted-foreground border border-border border-dashed rounded-xl">
+            <div className="px-3 py-8 text-center text-muted-foreground text-[13px]">
               Chưa có khách hàng nào được tìm thấy.
             </div>
           )}
