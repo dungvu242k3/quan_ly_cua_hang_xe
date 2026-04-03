@@ -98,6 +98,20 @@ const PersonnelFormModal: React.FC<PersonnelFormModalProps> = React.memo(({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1.5 focus-within:ring-2 focus-within:ring-primary/20 rounded-xl transition-all font-mono">
+                <label className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                  <span className="text-primary font-black">ID</span>
+                  Mã nhân sự (ID)
+                </label>
+                <input
+                  type="text" name="id_nhan_su" value={formData.id_nhan_su ?? ''} onChange={handleInputChange} placeholder="NV-XXXX"
+                  tabIndex={0}
+                  className="w-full px-4 py-2 bg-background border border-border rounded-xl outline-none focus:border-primary text-[14px] font-bold text-primary placeholder-slate-300"
+                />
+              </div>
+
+              <div className="hidden md:block"></div> {/* Spacer for alignment */}
+
               <div className="space-y-1.5 focus-within:ring-2 focus-within:ring-primary/20 rounded-xl transition-all">
                 <label className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
                   <User size={14} className="text-primary/70" />

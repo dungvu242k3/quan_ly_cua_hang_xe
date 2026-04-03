@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabase';
 
 export interface NhanSu {
   id: string;
+  id_nhan_su?: string | null;
   ho_ten: string;
   email: string | null;
   sdt: string | null;
@@ -113,7 +114,7 @@ export const getPersonnelPaginated = async (
     .select('*', { count: 'exact' });
 
   if (searchQuery) {
-    query = query.or(`ho_ten.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%,sdt.ilike.%${searchQuery}%`);
+    query = query.or(`ho_ten.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%,sdt.ilike.%${searchQuery}%,id_nhan_su.ilike.%${searchQuery}%`);
   }
 
   if (filters?.branches?.length) {

@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabase';
 
 export interface DichVu {
   id: string;
+  id_dich_vu?: string | null;
   co_so: string;
   ten_dich_vu: string;
   gia_nhap: number;
@@ -114,7 +115,7 @@ export const getServicesPaginated = async (
     .select('*', { count: 'exact' });
 
   if (searchQuery) {
-    query = query.or(`ten_dich_vu.ilike.%${searchQuery}%,id.ilike.%${searchQuery}%`);
+    query = query.or(`ten_dich_vu.ilike.%${searchQuery}%,id_dich_vu.ilike.%${searchQuery}%`);
   }
 
   if (filters?.branches?.length) {

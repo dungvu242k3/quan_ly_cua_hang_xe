@@ -2,6 +2,7 @@
 CREATE TABLE IF NOT EXISTS public.nhan_su (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     ho_ten TEXT NOT NULL,
+    id_nhan_su TEXT, -- Mã nhân vật lấy từ cột id trong Excel
     email TEXT,
     sdt TEXT,
     hinh_anh TEXT,

@@ -74,7 +74,7 @@ const CustomerFormModal: React.FC<CustomerFormModalProps> = React.memo(({ isOpen
           anh: '',
           ngay_dang_ky: new Date().toISOString().split('T')[0],
           bien_so_xe: '',
-          ma_khach_hang: '',
+          ma_khach_hang: 'KH-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
           lich_su_thay_dau: []
         });
       }
@@ -247,7 +247,7 @@ const CustomerFormModal: React.FC<CustomerFormModalProps> = React.memo(({ isOpen
             </div>
             <InputField label="Họ và tên" name="ho_va_ten" value={formData.ho_va_ten} onChange={handleInputChange} icon={User} placeholder="Nhập họ tên đầy đủ..." required />
             <InputField label="Số điện thoại" name="so_dien_thoai" value={formData.so_dien_thoai} onChange={handleInputChange} icon={Phone} placeholder="09xx..." required />
-            <InputField label="Mã khách hàng (Mã cũ)" name="ma_khach_hang" value={formData.ma_khach_hang} onChange={handleInputChange} icon={Tag} placeholder="Mã khách hàng cũ (nếu có)" />
+            <InputField label="Mã khách hàng" name="ma_khach_hang" value={formData.ma_khach_hang} onChange={handleInputChange} icon={Tag} placeholder="KH-XXXXXX" />
             <InputField label="Địa chỉ hiện tại" name="dia_chi_hien_tai" value={formData.dia_chi_hien_tai} onChange={handleInputChange} icon={MapPin} placeholder="Bắc Giang, Hà Nội..." />
             <InputField label="Biển số xe" name="bien_so_xe" value={formData.bien_so_xe} onChange={handleInputChange} icon={CreditCard} placeholder="98A-xxx.xx" />
             <InputField label="Ngày đăng ký" name="ngay_dang_ky" type="date" value={formData.ngay_dang_ky} onChange={handleInputChange} icon={Calendar} />

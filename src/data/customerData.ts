@@ -50,8 +50,8 @@ export const getCustomersForSelect = async (): Promise<Pick<KhachHang, 'id' | 'h
 };
 
 export const getCustomersPaginated = async (
-  page: number, 
-  pageSize: number, 
+  page: number,
+  pageSize: number,
   searchQuery?: string
 ): Promise<{ data: KhachHang[], totalCount: number }> => {
   const from = (page - 1) * pageSize;
@@ -153,9 +153,9 @@ export const uploadCustomerImage = async (file: File): Promise<string> => {
 };
 
 export const getCustomerServiceHistory = async (
-   customerId: string,
-   startDate?: string,
-   endDate?: string
+  customerId: string,
+  startDate?: string,
+  endDate?: string
 ): Promise<any[]> => {
   let query = supabase
     .from('the_ban_hang')
@@ -186,16 +186,16 @@ export const getCustomerServiceHistory = async (
 };
 
 export const getCustomerByPlate = async (plate: string): Promise<KhachHang | null> => {
-   if (!plate || plate.trim() === '') return null;
-   const { data, error } = await supabase
-     .from('khach_hang')
-     .select('*')
-     .eq('bien_so_xe', plate.trim())
-     .maybeSingle();
+  if (!plate || plate.trim() === '') return null;
+  const { data, error } = await supabase
+    .from('khach_hang')
+    .select('*')
+    .eq('bien_so_xe', plate.trim())
+    .maybeSingle();
 
-   if (error) {
-     console.error('Error fetching customer by plate:', error);
-     return null;
-   }
-   return data as KhachHang;
+  if (error) {
+    console.error('Error fetching customer by plate:', error);
+    return null;
+  }
+  return data as KhachHang;
 };

@@ -146,8 +146,8 @@ const ServiceManagementPage: React.FC = () => {
   const handleDownloadTemplate = () => {
     const templateData = [
       {
+        "id": "DV-001",
         "Tên dịch vụ": "Bảo dưỡng toàn bộ",
-        "ID": "Optional: UUID format",
         "Cơ sở": "Cơ sở Bắc Giang",
         "Giá nhập": 200000,
         "Giá bán": 350000,
@@ -229,6 +229,8 @@ const ServiceManagementPage: React.FC = () => {
           const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
           if (rawId && uuidRegex.test(rawId)) {
             record.id = rawId;
+          } else if (rawId) {
+            record.id_dich_vu = rawId;
           }
 
           return record;
@@ -388,8 +390,10 @@ const ServiceManagementPage: React.FC = () => {
                     </div>
                   )}
                   <div className="text-right">
-                    <div className="font-mono text-[10px] text-muted-foreground/60 uppercase">#{service.id.slice(0, 8)}</div>
-                    <div className="text-[11px] text-muted-foreground font-medium">{service.co_so.replace('Cơ sở ', 'CS ')}</div>
+                    <div className="font-mono text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded font-black tracking-wider group-hover:bg-primary group-hover:text-white transition-colors">
+                      {service.id_dich_vu || service.id.slice(0, 8)}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground font-medium mt-1">{service.co_so.replace('Cơ sở ', 'CS ')}</div>
                   </div>
                 </div>
 
@@ -458,9 +462,9 @@ const ServiceManagementPage: React.FC = () => {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-muted border-b border-border text-muted-foreground text-[12px] font-bold uppercase tracking-wider">
+                  <th className="px-4 py-3 font-semibold">Mã DV</th>
                   <th className="px-4 py-3 font-semibold">Ảnh</th>
                   <th className="px-4 py-3 font-semibold">Cơ sở</th>
-                  <th className="px-4 py-3 font-semibold">ID</th>
                   <th className="px-4 py-3 font-semibold">Tên dịch vụ</th>
                   <th className="px-4 py-3 font-semibold text-right">Giá nhập</th>
                   <th className="px-4 py-3 font-semibold text-right">Giá bán</th>
@@ -479,6 +483,9 @@ const ServiceManagementPage: React.FC = () => {
                   </tr>
                 ) : services.map(service => (
                   <tr key={service.id} className="hover:bg-muted/80 transition-colors">
+                    <td className="px-4 py-4 font-mono text-[13px] font-black text-primary tracking-wider" title={service.id}>
+                      {service.id_dich_vu || service.id.slice(0, 8)}
+                    </td>
                     <td className="px-4 py-4">
                       {service.anh ? (
                         <div className="w-10 h-10 rounded-lg overflow-hidden border border-border">
@@ -489,9 +496,6 @@ const ServiceManagementPage: React.FC = () => {
                       )}
                     </td>
                     <td className="px-4 py-4">{service.co_so}</td>
-                    <td className="px-4 py-4 font-mono text-[10px] text-muted-foreground max-w-[80px] truncate" title={service.id}>
-                      {service.id.slice(0, 8)}
-                    </td>
                     <td className="px-4 py-4 font-bold text-foreground">{service.ten_dich_vu}</td>
                     <td className="px-4 py-4 text-right text-muted-foreground">{formatCurrency(service.gia_nhap)}</td>
                     <td className="px-4 py-4 text-right font-black text-primary">{formatCurrency(service.gia_ban)}</td>

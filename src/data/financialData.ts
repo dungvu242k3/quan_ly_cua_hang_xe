@@ -130,6 +130,19 @@ export const deleteAllTransactions = async (): Promise<void> => {
   }
 };
 
+export const deleteSalesTransactions = async (): Promise<void> => {
+  const { error } = await supabase
+    .from('thu_chi')
+    .delete()
+    .not('id_don', 'is', null);
+
+  if (error) {
+    console.error('Error deleting sales transactions:', error);
+    throw error;
+  }
+};
+
+
 export interface TransactionFilters {
   branches?: string[];
   types?: string[];

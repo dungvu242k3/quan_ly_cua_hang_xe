@@ -6,7 +6,6 @@ import type { KhachHang } from '../data/customerData';
 import type { NhanSu } from '../data/personnelData';
 import type { DichVu } from '../data/serviceData';
 import { SearchableSelect } from './ui/SearchableSelect';
-import { MultiSearchableSelect } from './ui/MultiSearchableSelect';
 import CustomerFormModal from './CustomerFormModal';
 
 // Helper for dynamic classes
@@ -52,49 +51,49 @@ const SalesCardFormModal: React.FC<{
   personnel: NhanSu[];
   services: DichVu[];
   onClose: () => void;
-  onSubmit: (data: Partial<SalesCard & { dich_vu_ids?: string[] }>) => Promise<void>;
+  onSubmit: (data: Partial<SalesCard>) => Promise<void>;
   onCustomerAdded: () => Promise<void>;
   onCollectPayment?: (data: any) => Promise<void>;
   isReadOnly?: boolean;
 }> = React.memo(({ isOpen, editingCard, initialData, customers, personnel, services, onClose, onSubmit, onCustomerAdded, isReadOnly, onCollectPayment }) => {
-  const [formData, setFormData] = useState<Partial<SalesCard & { dich_vu_ids?: string[], service_items?: { id: string, ten_dich_vu: string, gia_ban: number }[] }>>(initialData);
+  const [formData, setFormData] = useState<Partial<SalesCard & { service_items?: { id: string, ten_dich_vu: string, gia_ban: number }[] }>>(initialData);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [isCollecting, setIsCollecting] = useState(false);
 
   // Memoize heavy options so dropdowns don't re-render on every keystroke
   const customerOptions = React.useMemo(() => customers.map(c => ({
-    value: c.id,
-    label: c.ho_va_ten
+    value: c.ma_khach_hang || c.id,
+    label: c.ma_khach_hang ? `${c.ho_va_ten} (${c.ma_khach_hang})` : c.ho_va_ten
   })), [customers]);
 
-  const serviceOptions = React.useMemo(() => services.map(s => ({
-    value: s.id,
-    label: s.ten_dich_vu,
-    price: new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(s.gia_ban)
-  })), [services]);
-
-  // Sync service_items with dich_vu_ids
+  // Sync service information based on dich_vu_id (which is now TEXT/Name)
   React.useEffect(() => {
-    if (formData.dich_vu_ids) {
-      const currentItems = formData.service_items || [];
-      const ids = formData.dich_vu_ids;
-      
-      const updatedItems = ids.map(id => {
-        const existing = currentItems.find(item => item.id === id);
-        if (existing) return existing;
-        const service = services.find(s => s.id === id);
-        return {
-          id,
-          ten_dich_vu: service?.ten_dich_vu || 'Dịch vụ',
-          gia_ban: service?.gia_ban || 0
-        };
-      });
-
-      if (JSON.stringify(updatedItems) !== JSON.stringify(currentItems)) {
-        setFormData(prev => ({ ...prev, service_items: updatedItems }));
+    if (formData.dich_vu_id) {
+      const service = services.find(s => s.ten_dich_vu === formData.dich_vu_id || s.id_dich_vu === formData.dich_vu_id);
+      if (service) {
+          // Update the localized service data if not already set correctly
+          if (!formData.dich_vu || formData.dich_vu.ten_dich_vu !== service.ten_dich_vu) {
+              setFormData(prev => ({
+                  ...prev,
+                  dich_vu: {
+                      ten_dich_vu: service.ten_dich_vu,
+                      gia_ban: service.gia_ban,
+                      gia_nhap: service.gia_nhap,
+                      co_so: service.co_so
+                  }
+              }));
+          }
       }
     }
-  }, [formData.dich_vu_ids, services]);
+  }, [formData.dich_vu_id, services]);
+
+  // Auto-generate id_bh for new cards
+  React.useEffect(() => {
+    if (!editingCard && !formData.id_bh && isOpen) {
+      const randomId = 'BH-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+      setFormData(prev => ({ ...prev, id_bh: randomId }));
+    }
+  }, [editingCard, isOpen, formData.id_bh]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -107,14 +106,8 @@ const SalesCardFormModal: React.FC<{
     }
   };
 
-  const handlePriceChange = (id: string, newPrice: string) => {
-    const numericPrice = parseInt(newPrice.replace(/\D/g, '') || '0', 10);
-    setFormData(prev => ({
-      ...prev,
-      service_items: prev.service_items?.map(item => 
-        item.id === id ? { ...item, gia_ban: numericPrice } : item
-      )
-    }));
+  const handleServiceChange = (val: string) => {
+    setFormData(prev => ({ ...prev, dich_vu_id: val }));
   };
 
   const formatNumber = (num: number | undefined) => {
@@ -143,11 +136,11 @@ const SalesCardFormModal: React.FC<{
         <form onSubmit={handleFormSubmit} className="overflow-y-auto p-8 flex-1 custom-scrollbar">
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Date & Time */}
               <InputField label="Ngày lập" name="ngay" type="date" value={formData.ngay || ''} onChange={handleInputChange} icon={Calendar} required disabled={isReadOnly} />
               <InputField label="Giờ lập" name="gio" type="time" value={formData.gio || ''} onChange={handleInputChange} icon={Clock} required disabled={isReadOnly} />
+              <InputField label="Mã phiếu" name="id_bh" value={formData.id_bh || ''} onChange={handleInputChange} icon={ShoppingCart} required placeholder="BH-XXXXXX" disabled={isReadOnly} />
+              <div className="hidden md:block"></div>
 
-              {/* Customer Selection */}
               <div className="space-y-1.5">
                 <label className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -174,14 +167,13 @@ const SalesCardFormModal: React.FC<{
                 />
               </div>
 
-              {/* Personnel Selection */}
               <div className="space-y-1.5">
                 <label className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
                   <User size={14} className="text-primary/70" />
                   Người phụ trách (Nhân viên) <span className="text-red-500">*</span>
                 </label>
                 <SearchableSelect
-                  options={personnel.map(p => ({ value: p.id, label: `${p.ho_ten} (${p.vi_tri})` }))}
+                  options={personnel.map(p => ({ value: p.ho_ten, label: `${p.ho_ten} (${p.vi_tri})` }))}
                   value={formData.nhan_vien_id || undefined}
                   onValueChange={(val: string) => !isReadOnly && setFormData(prev => ({ ...prev, nhan_vien_id: val }))}
                   placeholder="-- Chọn nhân viên --"
@@ -190,73 +182,19 @@ const SalesCardFormModal: React.FC<{
                 />
               </div>
 
-              {/* Service Selection */}
               <div className="space-y-1.5 md:col-span-2">
                 <label className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
                   <Wrench size={14} className="text-primary/70" />
                   Dịch vụ sử dụng <span className="text-red-500">*</span>
                 </label>
-                <MultiSearchableSelect
-                  options={serviceOptions}
-                  value={formData.dich_vu_ids || []}
-                  onValueChange={(vals: string[]) => !isReadOnly && setFormData(prev => ({ ...prev, dich_vu_ids: vals }))}
-                  placeholder="-- Chọn hoặc tìm nhiều dịch vụ --"
+                <SearchableSelect
+                  options={services.map(s => ({ value: s.ten_dich_vu, label: `${s.ten_dich_vu} (${s.gia_ban.toLocaleString()}đ)` }))}
+                  value={formData.dich_vu_id || undefined}
+                  onValueChange={(val: string) => !isReadOnly && handleServiceChange(val)}
+                  placeholder="-- Chọn hoặc tìm dịch vụ --"
                   searchPlaceholder="Tìm tên dịch vụ..."
                   className={clsx("font-bold", isReadOnly && "pointer-events-none opacity-80")}
                 />
-
-                {/* Detailed Service Table */}
-                {formData.service_items && formData.service_items.length > 0 && (
-                  <div className="mt-4 border border-border rounded-2xl overflow-hidden bg-muted/20 animate-in fade-in slide-in-from-top-1 duration-300">
-                    <table className="w-full text-[13px]">
-                      <thead>
-                        <tr className="bg-muted/50 border-b border-border text-muted-foreground font-bold text-[11px] uppercase tracking-wider">
-                          <th className="px-4 py-2 text-left">Tên dịch vụ</th>
-                          <th className="px-4 py-2 text-right w-[180px]">Đơn giá</th>
-                          <th className="px-4 py-2 text-right w-[150px]">Thành tiền</th>
-                          {!isReadOnly && <th className="w-10"></th>}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border/50">
-                        {formData.service_items.map((item) => (
-                          <tr key={item.id} className="hover:bg-muted/30 transition-colors">
-                            <td className="px-4 py-3 font-medium text-foreground">{item.ten_dich_vu}</td>
-                            <td className="px-4 py-3 text-right">
-                              <div className="relative group">
-                                <input
-                                  type="text"
-                                  value={formatNumber(item.gia_ban)}
-                                  onChange={(e) => !isReadOnly && handlePriceChange(item.id, e.target.value)}
-                                  disabled={isReadOnly}
-                                  className={clsx("w-full text-right bg-background border border-transparent hover:border-border focus:border-primary px-2 py-1.5 rounded-lg outline-none font-bold text-primary transition-all pr-8", isReadOnly && "cursor-not-allowed")}
-                                />
-                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground font-medium pointer-events-none group-focus-within:text-primary transition-colors">đ</span>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-right font-bold text-foreground">
-                              {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(item.gia_ban)}
-                            </td>
-                            {!isReadOnly && (
-                              <td className="px-2 py-3 text-center">
-                                <button 
-                                  type="button"
-                                  onClick={() => setFormData(prev => ({
-                                    ...prev,
-                                    dich_vu_ids: prev.dich_vu_ids?.filter(id => id !== item.id),
-                                    service_items: prev.service_items?.filter(i => i.id !== item.id)
-                                  }))}
-                                  className="p-1.5 text-muted-foreground/50 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                                >
-                                  <X size={14} />
-                                </button>
-                              </td>
-                            )}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
               </div>
 
               <InputField label="Số Km" name="so_km" value={formatNumber(formData.so_km)} onChange={handleInputChange} icon={History} placeholder="12.000" disabled={isReadOnly} />
@@ -264,16 +202,14 @@ const SalesCardFormModal: React.FC<{
               <InputField label="Ngày nhắc thay dầu" name="ngay_nhac_thay_dau" type="date" value={formData.ngay_nhac_thay_dau || ''} onChange={handleInputChange} icon={Calendar} disabled={isReadOnly} />
             </div>
 
-            {formData.service_items && formData.service_items.length > 0 && (
+            {formData.dich_vu && (
               <div className="mt-8 bg-primary/5 p-5 rounded-2xl border border-primary/20 border-dashed flex justify-between items-center animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <div className="space-y-0.5">
                   <div className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider">Tổng chi phí dịch vụ</div>
-                  <div className="text-[11px] text-muted-foreground">({formData.service_items.length} hạng mục đã chọn)</div>
+                  <div className="text-[11px] text-muted-foreground">({formData.dich_vu.ten_dich_vu})</div>
                 </div>
                 <div className="text-2xl font-black text-primary tracking-tight">
-                  {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(
-                    formData.service_items.reduce((sum, item) => sum + (item.gia_ban || 0), 0)
-                  )}
+                  {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(formData.dich_vu.gia_ban || 0)}
                 </div>
               </div>
             )}
@@ -317,7 +253,7 @@ const SalesCardFormModal: React.FC<{
         customer={null}
         onSuccess={async (newCust: KhachHang) => {
           await onCustomerAdded();
-          setFormData(prev => ({ ...prev, khach_hang_id: newCust.id }));
+          setFormData(prev => ({ ...prev, khach_hang_id: newCust.ma_khach_hang || newCust.id }));
           setIsCustomerModalOpen(false);
         }}
       />

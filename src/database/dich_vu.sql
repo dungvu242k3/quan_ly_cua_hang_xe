@@ -1,6 +1,7 @@
 -- Create the dich_vu table
 CREATE TABLE IF NOT EXISTS dich_vu (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id_dich_vu TEXT, -- Mã dịch vụ (lấy từ Excel)
     co_so TEXT NOT NULL,
     ten_dich_vu TEXT NOT NULL,
     gia_nhap NUMERIC DEFAULT 0,

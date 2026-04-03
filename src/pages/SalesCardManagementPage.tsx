@@ -18,16 +18,18 @@ import Pagination from '../components/Pagination';
 import SalesCardFormModal from '../components/SalesCardFormModal';
 import { useAuth } from '../context/AuthContext';
 import type { KhachHang } from '../data/customerData';
-import { bulkUpsertCustomers, getCustomers, getCustomersForSelect } from '../data/customerData';
+import { getCustomersForSelect } from '../data/customerData';
 import type { ThuChi } from '../data/financialData';
 import { deleteTransactionByOrderId, getTransactionByOrderId, upsertTransaction } from '../data/financialData';
 import type { NhanSu } from '../data/personnelData';
 import { getPersonnel } from '../data/personnelData';
 import { bulkUpsertSalesCardCTs } from '../data/salesCardCTData';
 import type { SalesCard } from '../data/salesCardData';
-import { bulkUpsertSalesCards, deleteSalesCard, getSalesCardsPaginated, upsertSalesCard } from '../data/salesCardData';
+import { bulkUpsertSalesCards, deleteAllSalesCards, deleteSalesCard, getSalesCardsPaginated, upsertSalesCard } from '../data/salesCardData';
+import { deleteSalesTransactions } from '../data/financialData';
 import type { DichVu } from '../data/serviceData';
-import { bulkUpsertServices, getServices } from '../data/serviceData';
+import { getServices } from '../data/serviceData';
+import { supabase } from '../lib/supabase';
 
 const SalesCardManagementPage: React.FC = () => {
   const { currentUser } = useAuth();
@@ -103,7 +105,7 @@ const SalesCardManagementPage: React.FC = () => {
           ngay: new Date().toISOString().split('T')[0],
           gio: new Date().toLocaleTimeString('vi-VN', { hour12: false, hour: '2-digit', minute: '2-digit' }),
           khach_hang_id: customer.id,
-          nhan_vien_id: matchedUser ? matchedUser.id : '',
+          nhan_vien_id: matchedUser ? matchedUser.ho_ten : '', // TEXT ID (ho_ten)
           dich_vu_id: '',
           dich_vu_ids: [],
           so_km: customer.so_km || 0,
@@ -145,7 +147,7 @@ const SalesCardManagementPage: React.FC = () => {
         ngay: new Date().toISOString().split('T')[0],
         gio: new Date().toLocaleTimeString('vi-VN', { hour12: false, hour: '2-digit', minute: '2-digit' }),
         khach_hang_id: '',
-        nhan_vien_id: matchedUser ? matchedUser.id : '',
+        nhan_vien_id: matchedUser ? matchedUser.ho_ten : '', // TEXT ID (ho_ten)
         dich_vu_id: '',
         dich_vu_ids: [],
         so_km: 0,
@@ -308,12 +310,10 @@ const SalesCardManagementPage: React.FC = () => {
   const handleDownloadTemplate = () => {
     const templateData = [
       {
-        "id": "",
+        "id": "BH-" + Math.random().toString(36).substring(2, 8).toUpperCase(),
         "Ngày": "2024-03-24",
         "Giờ": "08:30:00",
-        "id khách hàng": "",
-        "Tên KH": "Nguyễn Văn A",
-        "SĐT": "0912345678",
+        "id khách hàng": "KH-XXXXXX",
         "Người phụ trách": "Nguyễn Văn B",
         "Dịch vụ sử dụng": "Thay dầu máy",
         "Số Km": 12000,
@@ -396,48 +396,17 @@ const SalesCardManagementPage: React.FC = () => {
           return str;
         };
 
-        const cleanPhone = (p: any) => String(p || '').replace(/\D/g, '');
-
-        const toUpsertCustomersLoc: Partial<KhachHang>[] = [];
-        const seenCustKeys = new Set<string>();
-
         const toUpsertServicesLoc: Partial<DichVu>[] = [];
         const seenServiceKeys = new Set<string>();
 
         data.forEach(row => {
           const norm: any = {};
           Object.keys(row).forEach(k => { norm[String(k).trim().toLowerCase().replace(/\s+/g, ' ')] = row[k]; });
+          
           const getValue = (keys: string[]) => {
             const k = keys.find(z => norm[z.toLowerCase().replace(/\s+/g, ' ')] !== undefined);
             return k ? norm[k.toLowerCase().replace(/\s+/g, ' ')] : undefined;
           };
-
-          const rawCustId = String(getValue(['id khách hàng', 'mã khách hàng', 'cust id', 'khách hàng id', 'don_hang_id']) || '').trim();
-          const sdtKhach = cleanPhone(getValue(['sđt', 'số điện thoại', 'phone', 'sdt']));
-          const tenKhach = String(getValue(['tên kh', 'khách hàng', 'tên khách hàng', 'họ và tên', 'họ tên', 'người mua']) || '').trim();
-
-          const exists = customers.find(c => {
-            const cId = c.id.replace(/-/g, '').toLowerCase();
-            const rId = rawCustId.replace(/-/g, '').toLowerCase();
-            const matchId = (rId && cId === rId) || (rId && rId.length >= 6 && cId.startsWith(rId)) || (rawCustId && c.ma_khach_hang === rawCustId);
-            const matchPhone = sdtKhach && cleanPhone(c.so_dien_thoai) === sdtKhach;
-            const matchName = tenKhach && c.ho_va_ten.toLowerCase() === tenKhach.toLowerCase();
-            return matchId || matchPhone || matchName;
-          });
-
-          if (!exists && (tenKhach || sdtKhach || rawCustId)) {
-            const key = `${tenKhach}-${sdtKhach}-${rawCustId}`;
-            if (!seenCustKeys.has(key)) {
-              seenCustKeys.add(key);
-              toUpsertCustomersLoc.push({
-                ho_va_ten: tenKhach || `Khách hàng ${rawCustId || 'mới'}`,
-                so_dien_thoai: sdtKhach || '',
-                ma_khach_hang: rawCustId || undefined,
-                ngay_dang_ky: new Date().toISOString().split('T')[0],
-                bien_so_xe: 'Xe Chưa Biển'
-              });
-            }
-          }
 
           const tenDichVu = String(getValue(['dịch vụ sử dụng', 'dịch vụ', 'tên dịch vụ', 'service', 'sản phẩm', 'loại', 'hạng mục']) || '').trim();
           const sExists = services.find(sv => sv.ten_dich_vu.toLowerCase() === tenDichVu.toLowerCase());
@@ -454,45 +423,28 @@ const SalesCardManagementPage: React.FC = () => {
           }
         });
 
-        if (toUpsertCustomersLoc.length > 0) {
-          await bulkUpsertCustomers(toUpsertCustomersLoc);
-        }
-        if (toUpsertServicesLoc.length > 0) {
-          await bulkUpsertServices(toUpsertServicesLoc);
-        }
-
-        const [updatedCustomers, updatedPersonnel, updatedServices] = await Promise.all([
-          getCustomers(),
-          getPersonnel(),
-          getServices()
-        ]);
+        await loadData(); // Ensure base data is current
+        const { data: salesCards } = await supabase.from('the_ban_hang').select('id, id_bh');
 
         const formattedData = data.map((row) => {
           const norm: any = {};
-          Object.keys(row).forEach(k => { norm[String(k).trim().toLowerCase().replace(/\s+/g, ' ')] = row[k]; });
-          const getValue = (keys: string[]) => {
-            const k = keys.find(z => norm[z.toLowerCase().replace(/\s+/g, ' ')] !== undefined);
-            return k ? norm[k.toLowerCase().replace(/\s+/g, ' ')] : undefined;
-          };
-
-          const rawId = String(getValue(['id', 'mã phiếu', 'mã', 'uuid']) || '').trim();
-          const rawCustId = String(getValue(['id khách hàng', 'mã khách hàng', 'cust id', 'khách hàng id', 'don_hang_id']) || '').trim();
-          const sdtKhach = cleanPhone(getValue(['sđt', 'số điện thoại', 'phone', 'sdt']));
-          const tenKhach = String(getValue(['tên kh', 'khách hàng', 'tên khách hàng', 'họ và tên', 'họ tên', 'người mua']) || '').trim();
-
-          const customerMatch = updatedCustomers.find(c => {
-            const cId = c.id.replace(/-/g, '').toLowerCase();
-            const rId = rawCustId.replace(/-/g, '').toLowerCase();
-            const matchId = (rId && cId === rId) || (rId && rId.length >= 6 && cId.startsWith(rId)) || (rawCustId && c.ma_khach_hang === rawCustId);
-            const matchPhone = sdtKhach && cleanPhone(c.so_dien_thoai) === sdtKhach;
-            const matchName = tenKhach && c.ho_va_ten.toLowerCase() === tenKhach.toLowerCase();
-            return matchId || matchPhone || matchName;
+          // Normalize keys: trim, lower case and replace multiple spaces with single space
+          Object.keys(row).forEach(k => { 
+            const cleanKey = String(k).trim().toLowerCase().replace(/\s+/g, ' ');
+            norm[cleanKey] = row[k]; 
           });
 
+          const getValue = (keys: string[]) => {
+            const k = keys.find(z => norm[z.toLowerCase()] !== undefined);
+            return k ? norm[k.toLowerCase()] : undefined;
+          };
+
+          const rawSalesId = String(getValue(['id', 'mã phiếu', 'id_bh', 'mã', 'uuid']) || '').trim();
+          const excelCustId = String(getValue(['id khách hàng', 'mã khách hàng', 'cust id', 'khách hàng id']) || '').trim();
+
           const tenNhanVien = String(getValue(['người phụ trách', 'ngươi phụ trách', 'nhân viên', 'tên nhân viên', 'phụ trách', 'kỹ thuật', 'thợ']) || '').trim();
-          const personnelMatch = updatedPersonnel.find(p => p.ho_ten.toLowerCase() === tenNhanVien.toLowerCase());
+          
           const tenDichVu = String(getValue(['dịch vụ sử dụng', 'dịch vụ', 'tên dịch vụ', 'service', 'sản phẩm', 'loại', 'hạng mục']) || '').trim();
-          const serviceMatch = updatedServices.find(s => s.ten_dich_vu.toLowerCase() === tenDichVu.toLowerCase());
 
           let ngay = formatExcelDate(getValue(['ngày', 'ngày lập', 'ngay', 'date', 'thời gian']));
           if (!ngay) ngay = new Date().toISOString().split('T')[0];
@@ -500,25 +452,31 @@ const SalesCardManagementPage: React.FC = () => {
           let gio = formatExcelTime(getValue(['giờ', 'thời gian', 'gio', 'time', 'tiết đi']));
           if (!gio) gio = "00:00:00";
 
-          const cardToUpdate = salesCards.find(c => {
-            const cleanId = c.id.replace(/-/g, '').toLowerCase();
-            const cleanRawId = rawId.replace(/-/g, '').toLowerCase();
-            return cleanId === cleanRawId || (cleanRawId.length >= 8 && cleanId.startsWith(cleanRawId));
+          const cardToUpdate = (salesCards || []).find((c: any) => {
+            if (!rawSalesId) return false;
+            const cleanRawId = rawSalesId.replace(/[-\s]/g, '').toLowerCase();
+            const cleanDbId = c.id.replace(/[-\s]/g, '').toLowerCase();
+            const cleanDbBh = (c.id_bh || '').replace(/[-\s]/g, '').toLowerCase();
+            return cleanDbId === cleanRawId || cleanDbBh === cleanRawId;
           });
 
           const res: any = {
             ngay,
             gio,
-            khach_hang_id: customerMatch?.id || null,
-            nhan_vien_id: personnelMatch?.id || null,
-            dich_vu_id: serviceMatch?.id || null,
-            so_km: Number(getValue(['số km', 'km', 'kilometer'])) || 0,
-            ngay_nhac_thay_dau: formatExcelDate(getValue(['ngày nhắc thay dầu', 'nhắc thay dầu', 'hạn thay dầu', 'ngay nhac', 'ngày thay']))
+            id_bh: rawSalesId || undefined,
+            khach_hang_id: excelCustId || null,
+            nhan_vien_id: tenNhanVien || null,
+            dich_vu_id: tenDichVu || null, // Lưu trực tiếp tên dịch vụ (TEXT)
+            so_km: Number(getValue(['số km', 'km', 'kilometer', 'số ki lô mét'])) || 0,
+            ngay_nhac_thay_dau: formatExcelDate(getValue(['ngày nhắc thay dầu', 'nhắc thay dầu', 'hạn thay dầu', 'ngay nhac', 'ngày thay', 'hẹn thay dầu', 'thay dầu tiếp']))
           };
 
-          if (cardToUpdate) res.id = cardToUpdate.id;
+          if (cardToUpdate) {
+            res.id = cardToUpdate.id;
+          }
+
           return res as Partial<SalesCard>;
-        }).filter(Boolean);
+        }).filter(item => item !== null);
 
         if (formattedData.length > 0) {
           setLoading(true);
@@ -549,6 +507,30 @@ const SalesCardManagementPage: React.FC = () => {
       } catch (error) {
         alert('Lỗi: Không thể xóa phiếu.');
       }
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    const confirm1 = window.confirm('⚠️ CẢNH BÁO: Bạn có chắc chắn muốn xóa TOÀN BỘ dữ liệu phiếu bán hàng không?\n(Dữ liệu chi tiết và phiếu thu tiền liên quan cũng sẽ bị xóa sạch)');
+    if (!confirm1) return;
+
+    const confirm2 = window.confirm('⚠️ XÁC NHẬN CUỐI CÙNG: Hành động này không thể hoàn tác. Bạn vẫn muốn tiếp tục xóa SẠCH tất cả phiếu bán hàng?');
+    if (!confirm2) return;
+
+    try {
+      setLoading(true);
+      await deleteAllSalesCards();
+      // Only delete transactions related to sales (safer than deleting ALL)
+      if (window.confirm('Bạn có muốn xóa luôn các Phiếu Thu liên quan trong mục Tài chính không?')) {
+        await deleteSalesTransactions();
+      }
+      await loadData();
+      alert('🚀 Đã xóa sạch toàn bộ dữ liệu bán hàng.');
+    } catch (error) {
+      console.error(error);
+      alert('Lỗi: Không thể xóa toàn bộ dữ liệu.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -612,26 +594,36 @@ const SalesCardManagementPage: React.FC = () => {
                 <Upload className="size-4 sm:size-5" />
                 <span>Nhập Excel</span>
               </button>
-              <input
-                id="excel-import"
-                type="file"
-                accept=".xlsx, .xls"
-                className="hidden"
-                onChange={handleImportExcel}
-              />
+                <input
+                  id="excel-import"
+                  type="file"
+                  accept=".xlsx, .xls"
+                  className="hidden"
+                  onChange={handleImportExcel}
+                />
+              </div>
+
+              {/* Delete All Button */}
+              <button
+                onClick={handleDeleteAll}
+                className="px-2 py-1 sm:px-4 sm:py-2 bg-rose-500/5 hover:bg-rose-500/10 text-rose-600 border border-rose-500/20 rounded-lg flex items-center gap-1.5 text-[11px] sm:text-[13px] font-bold transition-all shrink-0"
+                title="Xóa tất cả phiếu bán hàng"
+              >
+                <Trash2 className="size-4 sm:size-5" />
+                <span>Xóa tất cả</span>
+              </button>
             </div>
           </div>
-        </div>
 
         {/* Summary Bar - Tổng đơn & Tổng tiền */}
         {!loading && displayItems.length > 0 && (
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             <div className="px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-primary/5 border border-primary/20 flex items-center gap-2">
-              <span className="text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase">Tổng đơn:</span>
+              <span className="text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-[0.2em]">Tổng đơn:</span>
               <span className="text-sm sm:text-base font-black text-primary">{totalCount}</span>
             </div>
             <div className="px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-emerald-500/5 border border-emerald-500/20 flex items-center gap-2">
-              <span className="text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase">Tổng tiền (trang):</span>
+              <span className="text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-[0.2em]">Tổng tiền (trang):</span>
               <span className="text-sm sm:text-base font-black text-emerald-600">
                 {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(
                   displayItems.reduce((grandSum, card) => {
@@ -747,7 +739,7 @@ const SalesCardManagementPage: React.FC = () => {
           {!loading && displayItems.length > 0 && (
             <div className="bg-primary/5 p-4 rounded-xl border border-primary/20 mt-2">
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground text-[12px] font-bold uppercase tracking-wider">Tổng trang này:</span>
+                <span className="text-muted-foreground text-[12px] font-bold uppercase tracking-widest font-sans">Tổng trang này:</span>
                 <span className="text-primary font-black text-lg">
                   {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(
                     displayItems.reduce((grandSum, card) => {
@@ -766,31 +758,38 @@ const SalesCardManagementPage: React.FC = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-muted border-b border-border text-muted-foreground text-[13px] font-bold uppercase tracking-wider">
-                  <th className="px-4 py-3 font-semibold text-center">Ngày & Giờ</th>
-                  <th className="px-4 py-3 font-semibold">Khách hàng</th>
+                <tr className="bg-muted border-b border-border text-muted-foreground text-[13px] font-bold tracking-tight">
+                  <th className="px-4 py-3 font-semibold text-center">id</th>
+                  <th className="px-4 py-3 font-semibold text-center">Ngày</th>
+                  <th className="px-4 py-3 font-semibold text-center">Giờ</th>
+                  <th className="px-4 py-3 font-semibold">Tên khách hàng</th>
                   <th className="px-4 py-3 font-semibold">SĐT</th>
                   <th className="px-4 py-3 font-semibold">Người phụ trách</th>
-                  <th className="px-4 py-3 font-semibold">Dịch vụ</th>
+                  <th className="px-4 py-3 font-semibold text-center">ĐÁNH GIÁ DỊCH VỤ</th>
+                  <th className="px-4 py-3 font-semibold">Dịch vụ sử dụng</th>
                   <th className="px-4 py-3 font-semibold text-right">Số Km</th>
-                  <th className="px-4 py-3 font-semibold text-right text-primary">Tổng chi phí dịch vụ</th>
-                  <th className="px-4 py-3 font-semibold text-center">Nhắc thay dầu</th>
-                  <th className="px-4 py-3 text-center font-semibold">Tác vụ</th>
+                  <th className="px-4 py-3 font-semibold text-center">Ngày nhắc thay dầu</th>
+                  <th className="px-4 py-3 text-center font-semibold">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-[14px]">
                 {loading ? (
                   <tr>
-                    <td colSpan={10} className="px-4 py-12 text-center text-muted-foreground">
+                    <td colSpan={11} className="px-4 py-12 text-center text-muted-foreground">
                       <Loader2 className="animate-spin inline-block mr-2" size={20} />
                       Đang tải dữ liệu phiếu bán hàng...
                     </td>
                   </tr>
                 ) : displayItems.map(card => (
                   <tr key={card.id} className="hover:bg-muted/80 transition-colors">
-                    <td className="px-4 py-4 text-center">
-                      <div className="font-bold text-foreground">{new Date(card.ngay).toLocaleDateString('vi-VN')}</div>
-                      <div className="text-[12px] text-muted-foreground">{card.gio}</div>
+                    <td className="px-4 py-4 text-center font-mono text-[12px] font-bold text-muted-foreground">
+                      {card.id_bh || card.id.slice(0, 8)}
+                    </td>
+                    <td className="px-4 py-4 text-center font-bold text-foreground">
+                      {new Date(card.ngay).toLocaleDateString('vi-VN')}
+                    </td>
+                    <td className="px-4 py-4 text-center text-muted-foreground">
+                      {card.gio}
                     </td>
                     <td className="px-4 py-4 font-bold text-primary">{card.khach_hang?.ho_va_ten || 'N/A'}</td>
                     <td className="px-4 py-4 text-muted-foreground">{card.khach_hang?.so_dien_thoai || 'N/A'}</td>
@@ -802,6 +801,7 @@ const SalesCardManagementPage: React.FC = () => {
                         {card.nhan_su?.ho_ten || 'Chưa phân công'}
                       </div>
                     </td>
+                    <td className="px-4 py-4 text-center text-muted-foreground">—</td>
                     <td className="px-4 py-4">
                       <div className="flex flex-wrap gap-1">
                         {(card as any).the_ban_hang_ct && (card as any).the_ban_hang_ct.length > 0 ? (
@@ -818,11 +818,6 @@ const SalesCardManagementPage: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-4 py-4 text-right font-mono font-bold text-foreground">{card.so_km?.toLocaleString()} km</td>
-                    <td className="px-4 py-4 text-right font-black text-primary">
-                      {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(
-                        ((card as any).the_ban_hang_ct || []).reduce((sum: number, ct: any) => sum + (ct.gia_ban * (ct.so_luong || 1)), 0)
-                      )}
-                    </td>
                     <td className="px-4 py-4 text-center">
                       {card.ngay_nhac_thay_dau ? (
                         <div className="flex items-center justify-center gap-1.5 text-rose-600 font-bold">
@@ -842,13 +837,13 @@ const SalesCardManagementPage: React.FC = () => {
                 ))}
                 {!loading && displayItems.length === 0 && (
                   <tr>
-                    <td colSpan={10} className="px-4 py-8 text-center text-muted-foreground">Chưa có phiếu bán hàng nào được lập.</td>
+                    <td colSpan={11} className="px-4 py-8 text-center text-muted-foreground">Chưa có phiếu bán hàng nào được lập.</td>
                   </tr>
                 )}
                 {!loading && displayItems.length > 0 && (
                   <tr className="bg-primary/5 font-black border-t-2 border-primary/20">
-                    <td colSpan={7} className="px-4 py-4 text-right text-muted-foreground uppercase text-[11px] tracking-widest">Tổng cộng trang này:</td>
-                    <td className="px-4 py-4 text-right text-primary text-lg">
+                    <td colSpan={9} className="px-4 py-4 text-right text-muted-foreground text-[11px] tracking-widest">Tổng cộng trang này:</td>
+                    <td colSpan={2} className="px-4 py-4 text-right text-primary text-lg">
                       {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(
                         displayItems.reduce((grandSum, card) => {
                           const items = (card as any).the_ban_hang_ct || [];
@@ -856,7 +851,6 @@ const SalesCardManagementPage: React.FC = () => {
                         }, 0)
                       )}
                     </td>
-                    <td colSpan={2}></td>
                   </tr>
                 )}
               </tbody>

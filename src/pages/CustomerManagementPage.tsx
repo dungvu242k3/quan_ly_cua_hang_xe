@@ -23,7 +23,7 @@ import CustomerDetailsModal from '../components/CustomerDetailsModal';
 import CustomerFormModal from '../components/CustomerFormModal';
 import Pagination from '../components/Pagination';
 import type { KhachHang } from '../data/customerData';
-import { bulkDeleteCustomers, bulkUpsertCustomers, deleteCustomer, getCustomersPaginated } from '../data/customerData';
+import { bulkDeleteCustomers, bulkUpsertCustomers, deleteCustomer, getCustomersForSelect, getCustomersPaginated } from '../data/customerData';
 
 const CustomerManagementPage: React.FC = () => {
   const navigate = useNavigate();
@@ -159,7 +159,7 @@ const CustomerManagementPage: React.FC = () => {
   const handleDownloadTemplate = () => {
     const templateData = [
       {
-        "id": "",
+        "id": "KH-" + Math.random().toString(36).substring(2, 8).toUpperCase(),
         "Họ và tên": "Nguyễn Văn A",
         "SĐT": "0912345678",
         "Ảnh": "https://example.com/image.png",
@@ -178,7 +178,7 @@ const CustomerManagementPage: React.FC = () => {
     XLSX.writeFile(workbook, "Mau_nhap_khach_hang.xlsx");
   };
 
-  const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -191,34 +191,34 @@ const CustomerManagementPage: React.FC = () => {
         const ws = wb.Sheets[wsname];
         const data = XLSX.utils.sheet_to_json(ws) as any[];
 
-        // Helper to convert Excel date serial numbers
         const formatExcelDate = (val: any) => {
-          if (val === undefined || val === null || val === '') return undefined;
-          if (typeof val === 'number' && val > 40000) {
-            const d = new Date(Math.round((val - 25569) * 86400 * 1000));
-            return d.toISOString().split('T')[0];
+          if (!val) return undefined;
+          if (typeof val === 'number') {
+            const date = new Date((val - 25569) * 86400 * 1000);
+            return date.toISOString().split('T')[0];
           }
           const s = String(val).trim();
           return s || undefined;
         };
 
+        // Fetch all identifiers from DB to check for duplicates properly
+        const fullList = await getCustomersForSelect();
+
         const formattedData: Partial<KhachHang>[] = data.map(row => {
-          // Normalize keys (trim whitespace and handle case)
+          // Normalize keys
           const normalizedRow: any = {};
           Object.keys(row).forEach(key => {
             normalizedRow[key.trim().toLowerCase()] = row[key];
           });
 
-          // Fuzzy mapping
           const getValue = (possibleKeys: string[]) => {
             const key = possibleKeys.find(k => normalizedRow[k.toLowerCase()] !== undefined);
             return key ? normalizedRow[key.toLowerCase()] : undefined;
           };
 
-          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-          const rawId = String(getValue(['id', 'mã', 'uuid', 'mã khách hàng']) || '').trim();
-          const validId = uuidRegex.test(rawId) ? rawId : undefined;
-
+          // In Excel, 'id' is mapped to 'ma_khach_hang' (id_kh)
+          const excelId = String(getValue(['id', 'id_kh', 'mã khách hàng', 'mã', 'mã định danh']) || '').trim();
+          
           const res: Partial<KhachHang> = {
             ho_va_ten: String(getValue(['họ và tên', 'tên', 'tên khách hàng', 'họ tên']) || '').trim(),
             so_dien_thoai: String(getValue(['số điện thoại', 'sđt', 'phone']) || '').trim(),
@@ -229,28 +229,30 @@ const CustomerManagementPage: React.FC = () => {
             so_km: Number(getValue(['số km', 'số km hiện tại', 'km'])) || 0,
             so_ngay_thay_dau: Number(getValue(['số ngày thay dầu', 'chu kỳ', 'số ngày'])) || 0,
             ngay_thay_dau: formatExcelDate(getValue(['ngày thay dầu', 'ngay thay dau'])),
-            ma_khach_hang: !validId && rawId ? rawId : undefined // Save legacy ID if not UUID
+            ma_khach_hang: excelId || ('KH-' + Math.random().toString(36).substring(2, 8).toUpperCase())
           };
 
-          // Find existing customer to prevent duplication
+          // Find existing customer by Customer ID OR Phone
           const cleanPhone = (p: any) => String(p || '').replace(/\D/g, '');
           const rowPhone = cleanPhone(res.so_dien_thoai);
 
-          const existing = customers.find(c => {
-            const matchId = validId && c.id === validId;
-            const matchMa = rawId && c.ma_khach_hang === rawId;
+          const existing = fullList.find((c: any) => {
+            const rawId = (excelId || '').replace(/-/g, '').toLowerCase();
+            const dbMaKh = (c.ma_khach_hang || '').replace(/-/g, '').toLowerCase();
+            const dbId = c.id.replace(/-/g, '').toLowerCase();
+
+            // PRIORITY: Strict ID match
+            if (rawId) {
+              return dbMaKh === rawId || dbId === rawId;
+            }
+
+            // SECONDARY: Match by Phone (only if no ID provided)
             const matchPhone = rowPhone && cleanPhone(c.so_dien_thoai) === rowPhone;
-            return matchId || matchMa || matchPhone;
+            return matchPhone;
           });
 
           if (existing) {
-            res.id = existing.id;
-            // If ma_khach_hang is blank in DB but present in Excel, keep it
-            if (!existing.ma_khach_hang && !validId && rawId) {
-              res.ma_khach_hang = rawId;
-            }
-          } else if (validId) {
-            res.id = validId;
+            res.id = existing.id; // Map to internal UUID for update
           }
 
           return res;
@@ -467,7 +469,7 @@ const CustomerManagementPage: React.FC = () => {
               <Download className="size-4 sm:size-5" />
               <span>Tải mẫu</span>
             </button>
-            
+
             <div className="relative shrink-0">
               <button
                 onClick={() => document.getElementById('excel-import')?.click()}
@@ -534,7 +536,7 @@ const CustomerManagementPage: React.FC = () => {
                             Thay dầu
                           </span>
                         ) : (
-                          <span className="text-muted-foreground/50 text-[8px] font-bold uppercase tracking-wider shrink-0 ml-2">
+                          <span className="text-muted-foreground/50 text-[8px] font-bold tracking-wider shrink-0 ml-2">
                             {customer.ma_khach_hang || customer.id.slice(0, 6)}
                           </span>
                         )}
@@ -546,7 +548,7 @@ const CustomerManagementPage: React.FC = () => {
                           <Car size={14} className="text-primary" />
                           <span className={clsx(
                             "font-bold",
-                            customer.bien_so_xe === 'Xe Chưa Biển' ? "text-amber-600" : "text-foreground uppercase"
+                            customer.bien_so_xe === 'Xe Chưa Biển' ? "text-amber-600" : "text-foreground"
                           )}>{customer.bien_so_xe}</span>
                         </div>
                         <span className="text-border">•</span>
@@ -628,15 +630,15 @@ const CustomerManagementPage: React.FC = () => {
               <thead>
                 <tr className="bg-muted border-b border-border text-muted-foreground text-[13px] font-bold uppercase tracking-tight">
                   <th className="px-4 py-3 w-8 text-center"><input className="rounded border-border text-primary size-4" type="checkbox" /></th>
-                  {visibleColumns.includes('ma_khach_hang') && <th className="px-4 py-3 font-semibold">Mã KH</th>}
+                  {visibleColumns.includes('ma_khach_hang') && <th className="px-4 py-3 font-semibold">id</th>}
                   {visibleColumns.includes('anh') && <th className="px-4 py-3 font-semibold text-center">Ảnh</th>}
-                  {visibleColumns.includes('ho_va_ten') && <th className="px-4 py-3 font-semibold">Họ tên khách hàng</th>}
-                  {visibleColumns.includes('so_dien_thoai') && <th className="px-4 py-3 font-semibold">Số điện thoại</th>}
-                  {visibleColumns.includes('dia_chi_hien_tai') && <th className="px-4 py-3 font-semibold">Địa chỉ</th>}
-                  {visibleColumns.includes('bien_so_xe') && <th className="px-4 py-3 font-semibold">Biển số</th>}
-                  {visibleColumns.includes('ngay_dang_ky') && <th className="px-4 py-3 font-semibold">Ngày ĐK</th>}
-                  {visibleColumns.includes('so_km') && <th className="px-4 py-3 font-semibold text-right">Số KM</th>}
-                  {visibleColumns.includes('so_ngay_thay_dau') && <th className="px-4 py-3 font-semibold text-center">Chu kỳ</th>}
+                  {visibleColumns.includes('ho_va_ten') && <th className="px-4 py-3 font-semibold">Họ và tên</th>}
+                  {visibleColumns.includes('so_dien_thoai') && <th className="px-4 py-3 font-semibold">SĐT</th>}
+                  {visibleColumns.includes('dia_chi_hien_tai') && <th className="px-4 py-3 font-semibold">Địa chỉ lưu trú hiện tại</th>}
+                  {visibleColumns.includes('bien_so_xe') && <th className="px-4 py-3 font-semibold">Biển số Xe</th>}
+                  {visibleColumns.includes('ngay_dang_ky') && <th className="px-4 py-3 font-semibold">Ngày đăng ký</th>}
+                  {visibleColumns.includes('so_km') && <th className="px-4 py-3 font-semibold text-right">Số Km</th>}
+                  {visibleColumns.includes('so_ngay_thay_dau') && <th className="px-4 py-3 font-semibold text-center">Số ngày thay dầu</th>}
                   {visibleColumns.includes('ngay_thay_dau') && <th className="px-4 py-3 font-semibold">Ngày thay dầu</th>}
                   {visibleColumns.includes('actions') && <th className="px-4 py-3 text-center font-semibold">Thao tác</th>}
                 </tr>
@@ -718,7 +720,7 @@ const CustomerTableRow: React.FC<{
   return (
     <tr className="hover:bg-muted/80 transition-colors border-b border-slate-50 last:border-0 grow">
       <td className="px-4 py-3 text-center"><input className="rounded border-border text-primary size-4" type="checkbox" /></td>
-      {visibleColumns.includes('ma_khach_hang') && <td className="px-4 py-3 font-mono text-[12px] text-muted-foreground uppercase">{customer.ma_khach_hang || customer.id.slice(0, 8)}</td>}
+      {visibleColumns.includes('ma_khach_hang') && <td className="px-4 py-3 font-mono text-[12px] text-muted-foreground">{customer.ma_khach_hang || customer.id.slice(0, 8)}</td>}
       {visibleColumns.includes('anh') && (
         <td className="px-4 py-3">
           <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center text-primary overflow-hidden border border-border shadow-sm mx-auto">
@@ -747,7 +749,7 @@ const CustomerTableRow: React.FC<{
         <td className="px-4 py-3">
           <span className={clsx(
             "px-2 py-1 rounded text-[12px] font-black border tracking-wider",
-            customer.bien_so_xe === 'Xe Chưa Biển' ? "bg-amber-50 text-amber-600 border-amber-100" : "bg-blue-50 text-blue-600 border-blue-100 uppercase"
+            customer.bien_so_xe === 'Xe Chưa Biển' ? "bg-amber-50 text-amber-600 border-amber-100" : "bg-blue-50 text-blue-600 border-blue-100"
           )}>
             {customer.bien_so_xe}
           </span>

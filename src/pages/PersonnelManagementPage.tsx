@@ -6,22 +6,22 @@ import {
   ChevronDown,
   Download,
   Edit2,
+  Eye,
   Loader2,
   Plus,
   Search,
   Trash2,
   Upload,
-  User,
-  Eye
+  User
 } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
+import Pagination from '../components/Pagination';
+import PersonnelDailyStatsModal from '../components/PersonnelDailyStatsModal';
+import PersonnelFormModal from '../components/PersonnelFormModal';
 import type { NhanSu } from '../data/personnelData';
 import { bulkUpsertPersonnel, deletePersonnel, getPersonnelPaginated, upsertPersonnel } from '../data/personnelData';
-import Pagination from '../components/Pagination';
-import PersonnelFormModal from '../components/PersonnelFormModal';
-import PersonnelDailyStatsModal from '../components/PersonnelDailyStatsModal';
 
 const PersonnelManagementPage: React.FC = () => {
   const navigate = useNavigate();
@@ -30,7 +30,7 @@ const PersonnelManagementPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  
+
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -100,7 +100,7 @@ const PersonnelManagementPage: React.FC = () => {
     setter(prev => {
       const isSelected = prev.includes(val);
       const newFilters = isSelected ? prev.filter(v => v !== val) : [...prev, val];
-      setCurrentPage(1); 
+      setCurrentPage(1);
       return newFilters;
     });
   };
@@ -142,7 +142,7 @@ const PersonnelManagementPage: React.FC = () => {
   const handleDownloadTemplate = () => {
     const templateData = [
       {
-        "id": "",
+        "id": "NV-001",
         "Họ và tên": "Nguyễn Văn A",
         "Email": "vana@gmail.com",
         "SĐT": "0912345678",
@@ -195,9 +195,9 @@ const PersonnelManagementPage: React.FC = () => {
           if (!ho_ten || ho_ten === 'undefined' || ho_ten === '') {
             return null;
           }
-
           const record: Partial<NhanSu> = {
             ho_ten,
+            id_nhan_su: String(norm["id"] || '').trim() || null,
             email: norm["Email"] ? String(norm["Email"]).trim() : null,
             sdt: norm["SĐT"] || norm["SDT"] || norm["Điện thoại"] ? String(norm["SĐT"] || norm["SDT"] || norm["Điện thoại"]).trim() : null,
             hinh_anh: norm["Hình ảnh"] || norm["Ảnh"] ? String(norm["Hình ảnh"] || norm["Ảnh"]).trim() : null,
@@ -205,11 +205,11 @@ const PersonnelManagementPage: React.FC = () => {
             co_so
           };
 
-          const rawId = norm["id"] ? String(norm["id"]).trim() : '';
-          // Strict UUID validation to prevent 400 errors from values like "m10"
+          // Handle the database UUID separately from the visible id_nhan_su
+          const databaseId = norm["db_id"] || norm["system_id"] ? String(norm["db_id"] || norm["system_id"]).trim() : '';
           const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-          if (rawId && uuidRegex.test(rawId)) {
-            record.id = rawId;
+          if (databaseId && uuidRegex.test(databaseId)) {
+            record.id = databaseId;
           }
 
           return record;
@@ -371,6 +371,7 @@ const PersonnelManagementPage: React.FC = () => {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-muted border-b border-border text-muted-foreground text-[12px] font-bold uppercase tracking-wider">
+                  <th className="px-4 py-3 font-semibold">id</th>
                   <th className="px-4 py-3 font-semibold">Ảnh</th>
                   <th className="px-4 py-3 font-semibold">Họ và tên</th>
                   <th className="px-4 py-3 font-semibold">Email</th>
@@ -383,13 +384,14 @@ const PersonnelManagementPage: React.FC = () => {
               <tbody className="divide-y divide-slate-100 text-[13px]">
                 {loading ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">
+                    <td colSpan={8} className="px-4 py-12 text-center text-muted-foreground">
                       <Loader2 className="animate-spin inline-block mr-2" size={20} />
                       Đang tải dữ liệu...
                     </td>
                   </tr>
                 ) : personnel.map(person => (
                   <tr key={person.id} className="hover:bg-muted/80 transition-colors">
+                    <td className="px-4 py-4 font-mono text-[11px] font-bold text-muted-foreground">{person.id_nhan_su || '—'}</td>
                     <td className="px-4 py-4">
                       <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary overflow-hidden border border-border shadow-sm">
                         {person.hinh_anh ? (
@@ -422,7 +424,7 @@ const PersonnelManagementPage: React.FC = () => {
                 ))}
                 {!loading && personnel.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">Không có dữ liệu nhân sự.</td>
+                    <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">Không có dữ liệu nhân sự.</td>
                   </tr>
                 )}
               </tbody>
@@ -456,8 +458,11 @@ const PersonnelManagementPage: React.FC = () => {
                     <div className="flex-1 min-w-0 flex flex-col justify-center">
                       {/* Line 1: Name + Phone + Badge */}
                       <div className="flex items-center justify-between">
-                        <div className="flex items-baseline gap-1.5 min-w-0">
+                        <div className="flex items-baseline gap-1.5 min-w-0 flex-wrap">
                           <h3 className="font-extrabold text-foreground text-sm truncate">{person.ho_ten}</h3>
+                          {person.id_nhan_su && (
+                            <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-bold uppercase">ID: {person.id_nhan_su}</span>
+                          )}
                           {person.sdt && (
                             <span className="text-[11px] text-muted-foreground/80 font-medium whitespace-nowrap">· {person.sdt}</span>
                           )}
@@ -528,7 +533,7 @@ const PersonnelManagementPage: React.FC = () => {
             )}
           </div>
 
-          <Pagination 
+          <Pagination
             currentPage={currentPage}
             pageSize={pageSize}
             totalCount={totalCount}

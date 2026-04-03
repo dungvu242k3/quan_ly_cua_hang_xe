@@ -91,7 +91,21 @@ const ServiceFormModal: React.FC<ServiceFormModalProps> = React.memo(({
         <form onSubmit={handleSubmit} className="overflow-y-auto p-8 flex-1">
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="md:col-span-2 space-y-1.5 focus-within:ring-2 focus-within:ring-primary/20 rounded-xl transition-all">
+              <div className="space-y-1.5 focus-within:ring-2 focus-within:ring-primary/20 rounded-xl transition-all">
+                <label className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider">Mã dịch vụ (ID)</label>
+                <input 
+                  type="text" 
+                  name="id_dich_vu" 
+                  value={formData.id_dich_vu || ''} 
+                  onChange={handleInputChange} 
+                  disabled={isReadOnly}
+                  placeholder="DV-XXXX"
+                  tabIndex={1}
+                  className={clsx("w-full px-4 py-2 bg-background border border-border rounded-xl outline-none focus:border-primary text-[14px] font-bold text-primary", isReadOnly && "bg-muted cursor-not-allowed")} 
+                />
+              </div>
+
+              <div className="space-y-1.5 focus-within:ring-2 focus-within:ring-primary/20 rounded-xl transition-all">
                 <label className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider">Tên dịch vụ <span className="text-red-500">*</span></label>
                 <input 
                   ref={nameInputRef}
@@ -102,12 +116,12 @@ const ServiceFormModal: React.FC<ServiceFormModalProps> = React.memo(({
                   required 
                   disabled={isReadOnly}
                   placeholder="Vd: Bảo dưỡng toàn bộ, Thay lốp..."
-                  tabIndex={1}
+                  tabIndex={2}
                   className={clsx("w-full px-4 py-2 bg-background border border-border rounded-xl outline-none focus:border-primary text-[14px] font-bold", isReadOnly && "bg-muted cursor-not-allowed")} 
                 />
               </div>
 
-              <InputField label="Cơ sở" name="co_so" type="select" options={branchOptions} value={formData.co_so || ''} onChange={handleInputChange} icon={Building2} tabIndex={2} disabled={isReadOnly} />
+              <InputField label="Cơ sở" name="co_so" type="select" options={branchOptions} value={formData.co_so || ''} onChange={handleInputChange} icon={Building2} tabIndex={3} disabled={isReadOnly} />
               
               <div className="space-y-1.5 focus-within:ring-2 focus-within:ring-primary/20 rounded-xl transition-all">
                 <label className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider">Giá nhập (VNĐ)</label>

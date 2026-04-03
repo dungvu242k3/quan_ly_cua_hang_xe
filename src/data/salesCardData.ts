@@ -5,6 +5,7 @@ import type { DichVu } from './serviceData';
 
 export interface SalesCard {
   id: string;
+  id_bh?: string | null; // Mã phiếu bán hàng (BH-XXXXXX)
   ngay: string;
   gio: string;
   khach_hang_id: string | null;
@@ -23,23 +24,71 @@ export interface SalesCard {
 }
 
 export const getSalesCards = async (): Promise<SalesCard[]> => {
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from('the_ban_hang')
     .select(`
-      *,
-      khach_hang:khach_hang_id(ho_va_ten, so_dien_thoai),
-      nhan_su:nhan_vien_id(ho_ten),
-      dich_vu:dich_vu_id(ten_dich_vu),
-      the_ban_hang_ct(san_pham, gia_ban, so_luong)
+      *
     `)
     .order('ngay', { ascending: false })
     .order('gio', { ascending: false });
 
-  if (error) {
-    console.error('Error fetching sales cards:', error);
-    throw error;
+  // Lookup customer info by ma_khach_hang
+  const cards = data as SalesCard[];
+  const custIds = [...new Set(cards.map(c => c.khach_hang_id).filter(Boolean))];
+  if (custIds.length > 0) {
+    const { data: customers } = await supabase
+      .from('khach_hang')
+      .select('ma_khach_hang, ho_va_ten, so_dien_thoai')
+      .in('ma_khach_hang', custIds as string[]);
+    const custMap = new Map((customers || []).map(c => [c.ma_khach_hang, c]));
+    cards.forEach(card => {
+      if (card.khach_hang_id) {
+        const cust = custMap.get(card.khach_hang_id);
+        if (cust) card.khach_hang = { ho_va_ten: cust.ho_va_ten, so_dien_thoai: cust.so_dien_thoai };
+      }
+    });
   }
-  return data as SalesCard[];
+
+    const staffIds = [...new Set(cards.map(c => c.nhan_vien_id).filter(Boolean))];
+    if (staffIds.length > 0) {
+      const { data: personnel } = await supabase
+        .from('nhan_su')
+        .select('ho_ten, id_nhan_su, vi_tri, co_so')
+        .or(`ho_ten.in.(${staffIds.map(id => `"${id}"`).join(',')}),id_nhan_su.in.(${staffIds.map(id => `"${id}"`).join(',')})`);
+      
+      const nameMap = new Map((personnel || []).map(p => [p.ho_ten.toLowerCase(), p]));
+      const idMap = new Map((personnel || []).filter(p => !!p.id_nhan_su).map(p => [p.id_nhan_su!.toLowerCase(), p]));
+
+      cards.forEach(card => {
+        if (card.nhan_vien_id) {
+          const key = card.nhan_vien_id.toLowerCase();
+          const p = idMap.get(key) || nameMap.get(key);
+          if (p) card.nhan_su = { ho_ten: p.ho_ten, vi_tri: p.vi_tri, co_so: p.co_so };
+        }
+      });
+    }
+
+    // Lookup services info by dich_vu_id (TEXT: Name or ID)
+    const serviceIds = [...new Set(cards.map(c => c.dich_vu_id).filter(Boolean))];
+    if (serviceIds.length > 0) {
+      const { data: services } = await supabase
+        .from('dich_vu')
+        .select('ten_dich_vu, id_dich_vu, gia_ban, gia_nhap, co_so')
+        .or(`ten_dich_vu.in.(${serviceIds.map(id => `"${id}"`).join(',')}),id_dich_vu.in.(${serviceIds.map(id => `"${id}"`).join(',')})`);
+      
+      const serviceNameMap = new Map((services || []).map(s => [s.ten_dich_vu.toLowerCase(), s]));
+      const serviceIdMap = new Map((services || []).filter(s => !!s.id_dich_vu).map(s => [s.id_dich_vu!.toLowerCase(), s]));
+
+      cards.forEach(card => {
+        if (card.dich_vu_id) {
+          const key = card.dich_vu_id.toLowerCase();
+          const s = serviceIdMap.get(key) || serviceNameMap.get(key);
+          if (s) card.dich_vu = { ten_dich_vu: s.ten_dich_vu, gia_ban: s.gia_ban, gia_nhap: s.gia_nhap, co_so: s.co_so };
+        }
+      });
+    }
+
+    return cards;
 };
 
 export const getSalesCardsPaginated = async (
@@ -52,46 +101,34 @@ export const getSalesCardsPaginated = async (
 
   let query = supabase
     .from('the_ban_hang')
-    .select(`
-      *,
-      khach_hang:khach_hang_id(id, ho_va_ten, so_dien_thoai),
-      nhan_su:nhan_vien_id(id, ho_ten),
-      dich_vu:dich_vu_id(id, ten_dich_vu),
-      the_ban_hang_ct(san_pham, gia_ban, so_luong)
-    `, { count: 'exact' });
+    .select(`*`, { count: 'exact' });
 
   if (searchQuery && searchQuery.trim()) {
     const term = searchQuery.trim();
     
-    // Step 1: Find matching customers
     const { data: matchedCustomers } = await supabase
       .from('khach_hang')
-      .select('id')
-      .or(`ho_va_ten.ilike.%${term}%,so_dien_thoai.ilike.%${term}%`);
+      .select('ma_khach_hang')
+      .or(`ho_va_ten.ilike.%${term}%,so_dien_thoai.ilike.%${term}%,ma_khach_hang.ilike.%${term}%`);
     
-    const customerIds = (matchedCustomers || []).map(c => c.id);
+    const customerCodes = (matchedCustomers || []).slice(0, 50).map(c => c.ma_khach_hang).filter(Boolean);
 
-    // Step 2: Find matching services
+    // Find matching services
     const { data: matchedServices } = await supabase
       .from('dich_vu')
       .select('id')
       .ilike('ten_dich_vu', `%${term}%`);
-    
-    const serviceIds = (matchedServices || []).map(s => s.id);
+    const serviceIds = (matchedServices || []).slice(0, 50).map(s => s.id);
 
-    // Step 3: Filter Sales Cards
+    // Filter Sales Cards
     const orConditions: string[] = [];
-    if (customerIds.length > 0) orConditions.push(`khach_hang_id.in.(${customerIds.join(',')})`);
+    if (customerCodes.length > 0) orConditions.push(`khach_hang_id.in.(${customerCodes.join(',')})`);
     if (serviceIds.length > 0) orConditions.push(`dich_vu_id.in.(${serviceIds.join(',')})`);
-    
-    // Also search in ID (if user enters UUID or part of it)
-    if (term.length >= 8) orConditions.push(`id.ilike.%${term}%`);
+    orConditions.push(`id_bh.ilike.%${term}%`);
+    orConditions.push(`khach_hang_id.ilike.%${term}%`);
 
     if (orConditions.length > 0) {
       query = query.or(orConditions.join(','));
-    } else {
-      // If no customer, no service, and term is search but no matches, return empty
-      return { data: [], totalCount: 0 };
     }
   }
 
@@ -105,8 +142,66 @@ export const getSalesCardsPaginated = async (
     throw error;
   }
 
+  // Lookup customer info by ma_khach_hang
+  const cards = (data as SalesCard[]) || [];
+  const custIds = [...new Set(cards.map(c => c.khach_hang_id).filter(Boolean))];
+  if (custIds.length > 0) {
+    const { data: customers } = await supabase
+      .from('khach_hang')
+      .select('ma_khach_hang, ho_va_ten, so_dien_thoai')
+      .in('ma_khach_hang', custIds as string[]);
+    const custMap = new Map((customers || []).map(c => [c.ma_khach_hang, c]));
+    cards.forEach(card => {
+      if (card.khach_hang_id) {
+        const cust = custMap.get(card.khach_hang_id);
+        if (cust) card.khach_hang = { ho_va_ten: cust.ho_va_ten, so_dien_thoai: cust.so_dien_thoai };
+      }
+    });
+  }
+
+  // Lookup personnel info by nhan_vien_id (TEXT: Name or ID)
+  const staffIds = [...new Set(cards.map(c => c.nhan_vien_id).filter(Boolean))];
+  if (staffIds.length > 0) {
+    const { data: personnel } = await supabase
+      .from('nhan_su')
+      .select('ho_ten, id_nhan_su, vi_tri, co_so')
+      .or(`ho_ten.in.(${staffIds.map(id => `"${id}"`).join(',')}),id_nhan_su.in.(${staffIds.map(id => `"${id}"`).join(',')})`);
+    
+    // Map either by name or by official staff ID
+    const nameMap = new Map((personnel || []).map(p => [p.ho_ten.toLowerCase(), p]));
+    const idMap = new Map((personnel || []).filter(p => !!p.id_nhan_su).map(p => [p.id_nhan_su!.toLowerCase(), p]));
+
+    cards.forEach(card => {
+      if (card.nhan_vien_id) {
+        const key = card.nhan_vien_id.toLowerCase();
+        const p = idMap.get(key) || nameMap.get(key);
+        if (p) card.nhan_su = { ho_ten: p.ho_ten, vi_tri: p.vi_tri, co_so: p.co_so };
+      }
+    });
+  }
+
+  // Lookup services info by dich_vu_id (TEXT: Name or ID)
+  const serviceIds = [...new Set(cards.map(c => c.dich_vu_id).filter(Boolean))];
+  if (serviceIds.length > 0) {
+    const { data: services } = await supabase
+      .from('dich_vu')
+      .select('ten_dich_vu, id_dich_vu, gia_ban, gia_nhap, co_so')
+      .or(`ten_dich_vu.in.(${serviceIds.map(id => `"${id}"`).join(',')}),id_dich_vu.in.(${serviceIds.map(id => `"${id}"`).join(',')})`);
+    
+    const serviceNameMap = new Map((services || []).map(s => [s.ten_dich_vu.toLowerCase(), s]));
+    const serviceIdMap = new Map((services || []).filter(s => !!s.id_dich_vu).map(s => [s.id_dich_vu!.toLowerCase(), s]));
+
+    cards.forEach(card => {
+      if (card.dich_vu_id) {
+        const key = card.dich_vu_id.toLowerCase();
+        const s = serviceIdMap.get(key) || serviceNameMap.get(key);
+        if (s) card.dich_vu = { ten_dich_vu: s.ten_dich_vu, gia_ban: s.gia_ban, gia_nhap: s.gia_nhap, co_so: s.co_so };
+      }
+    });
+  }
+
   return {
-    data: (data as SalesCard[]) || [],
+    data: cards,
     totalCount: count || 0
   };
 };
@@ -143,7 +238,20 @@ export const deleteSalesCard = async (id: string): Promise<void> => {
     .eq('id', id);
 
   if (error) {
-    console.error('Error deleting sales card:', error);
+    console.error('Error deleting sales card:', id, error);
     throw error;
   }
 };
+
+export const deleteAllSalesCards = async (): Promise<void> => {
+  const { error } = await supabase
+    .from('the_ban_hang')
+    .delete()
+    .neq('id', '00000000-0000-0000-0000-000000000000');
+
+  if (error) {
+    console.error('Error deleting all sales cards:', error);
+    throw error;
+  }
+};
+
