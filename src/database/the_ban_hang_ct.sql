@@ -1,7 +1,8 @@
 -- Create the the_ban_hang_ct (Detailed Sales Items) table
 CREATE TABLE IF NOT EXISTS public.the_ban_hang_ct (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    don_hang_id UUID REFERENCES public.the_ban_hang(id) ON DELETE CASCADE,
+    id_ban_hang_ct TEXT, -- Custom ID for detail record
+    id_don_hang TEXT, -- Order Reference ID (maps to id_bh)
     ten_don_hang TEXT, -- For redundancy or custom naming
     san_pham TEXT NOT NULL, -- Name of product or service
     co_so TEXT NOT NULL,
@@ -23,5 +24,5 @@ ALTER TABLE public.the_ban_hang_ct ENABLE ROW LEVEL SECURITY;
 -- Create policy to allow all actions for development
 CREATE POLICY "Allow all actions for the_ban_hang_ct" ON public.the_ban_hang_ct FOR ALL USING (true);
 
--- Index for parent reference
-CREATE INDEX IF NOT EXISTS idx_the_ban_hang_ct_don_hang ON public.the_ban_hang_ct(don_hang_id);
+-- Index for parent reference (using TEXT field now)
+CREATE INDEX IF NOT EXISTS idx_the_ban_hang_ct_id_don_hang ON public.the_ban_hang_ct(id_don_hang);

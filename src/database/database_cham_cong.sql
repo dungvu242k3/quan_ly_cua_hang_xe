@@ -3,6 +3,7 @@
 
 CREATE TABLE cham_cong (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  id_cham_cong text, -- Mã chấm công (Dạng văn bản)
   ngay date DEFAULT CURRENT_DATE NOT NULL,
   checkin time,
   checkout time,

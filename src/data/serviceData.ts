@@ -136,3 +136,31 @@ export const getServicesPaginated = async (
     totalCount: count || 0
   };
 };
+
+export const getNextServiceCode = async (): Promise<string> => {
+  const { data, error } = await supabase
+    .from('dich_vu')
+    .select('id_dich_vu')
+    .order('id_dich_vu', { ascending: false })
+    .limit(1);
+
+  if (error) {
+    console.error('Error fetching next service code:', error);
+    return 'DV-0001';
+  }
+
+  if (!data || data.length === 0 || !data[0].id_dich_vu) {
+    return 'DV-0001';
+  }
+
+  const lastCode = data[0].id_dich_vu;
+  const match = lastCode.match(/^DV-(\d+)$/);
+  
+  if (match) {
+    const nextNumber = parseInt(match[1]) + 1;
+    return `DV-${nextNumber.toString().padStart(4, '0')}`;
+  }
+
+  // Fallback if the format doesn't match
+  return `DV-${(data.length + 1).toString().padStart(4, '0')}`;
+};

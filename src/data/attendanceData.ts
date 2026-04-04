@@ -1,7 +1,29 @@
 import { supabase } from '../lib/supabase';
 
+export const getNextAttendanceId = async (): Promise<string> => {
+  const { data, error } = await supabase
+    .from('cham_cong')
+    .select('id_cham_cong')
+    .order('id_cham_cong', { ascending: false })
+    .limit(1);
+
+  if (error || !data || data.length === 0 || !data[0].id_cham_cong) {
+    return 'CC-0001';
+  }
+
+  const lastId = data[0].id_cham_cong;
+  const match = lastId.match(/CC-(\d+)/);
+  if (match) {
+    const nextNumber = parseInt(match[1]) + 1;
+    return `CC-${String(nextNumber).padStart(4, '0')}`;
+  }
+
+  return 'CC-0001';
+};
+
 export interface AttendanceRecord {
   id: string;
+  id_cham_cong: string | null;
   ngay: string;
   checkin: string | null;
   checkout: string | null;

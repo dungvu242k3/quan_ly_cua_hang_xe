@@ -2,7 +2,8 @@ import { supabase } from '../lib/supabase';
 
 export interface SalesCardCT {
   id: string;
-  don_hang_id: string | null;
+  id_ban_hang_ct: string | null;
+  id_don_hang: string | null;
   ten_don_hang: string | null;
   san_pham: string;
   co_so: string;
@@ -17,11 +18,11 @@ export interface SalesCardCT {
   created_at?: string;
 }
 
-export const getSalesCardCTs = async (donHangId?: string): Promise<SalesCardCT[]> => {
+export const getSalesCardCTs = async (idDonHang?: string): Promise<SalesCardCT[]> => {
   let query = supabase.from('the_ban_hang_ct').select('*');
   
-  if (donHangId) {
-    query = query.eq('don_hang_id', donHangId);
+  if (idDonHang) {
+    query = query.eq('id_don_hang', idDonHang);
   }
   
   const { data, error } = await query.order('created_at', { ascending: false });

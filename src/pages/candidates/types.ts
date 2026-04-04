@@ -13,7 +13,8 @@ export interface Candidate {
   birthYear: string;
   position: string;
   positionId: string;
-  status: 'new' | 'interviewing' | 'hired' | 'rejected';
+  id_ung_vien?: string | null;
+  status: 'new' | 'reviewing' | 'interviewing' | 'interviewed' | 'hired' | 'rejected';
   source: string;
   latestInterview: string;
   latestResult: string;
@@ -50,6 +51,7 @@ export interface CandidateFormState {
   formBirthDate: string;
   formSource: string;
   formPosition: string;
+  formCandidateCode: string;
   formStatus: string;
   formLatestInterview: string;
   formLatestResult: string;

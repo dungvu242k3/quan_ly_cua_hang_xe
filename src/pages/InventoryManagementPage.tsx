@@ -12,9 +12,12 @@ import {
 import * as XLSX from 'xlsx';
 import { useNavigate } from 'react-router-dom';
 import { clsx } from 'clsx';
-import { addInventoryRecord, deleteInventoryRecord, bulkInsertInventoryRecords, deleteAllInventoryRecords, getInventoryPaginated } from '../data/inventoryData';
+import { addInventoryRecord, deleteInventoryRecord, bulkInsertInventoryRecords, deleteAllInventoryRecords, getInventoryPaginated, getNextInventoryId } from '../data/inventoryData';
 import type { InventoryRecord } from '../data/inventoryData';
+import { getServices } from '../data/serviceData';
 import Pagination from '../components/Pagination';
+import { SearchableSelect } from '../components/ui/SearchableSelect';
+import type { DichVu } from '../data/serviceData';
 
 const InventoryManagementPage: React.FC = () => {
   const navigate = useNavigate();
@@ -38,14 +41,16 @@ const InventoryManagementPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<InventoryRecord | null>(null);
   const [formData, setFormData] = useState<Partial<InventoryRecord>>({});
+  const [services, setServices] = useState<DichVu[]>([]);
 
   const [visibleColumns, setVisibleColumns] = useState<string[]>([
-    'loai_phieu', 'id_don_hang', 'co_so', 'ten_mat_hang', 'so_luong', 
+    'id_xuat_nhap_kho', 'loai_phieu', 'id_don_hang', 'co_so', 'ten_mat_hang', 'so_luong', 
     'gia', 'tong_tien', 'ngay', 'gio', 'nguoi_thuc_hien', 'actions'
   ]);
 
   const allColumns = [
-    { id: 'id', label: 'ID' },
+    { id: 'id_xuat_nhap_kho', label: 'Mã Phiếu' },
+    { id: 'id', label: 'UUID' },
     { id: 'loai_phieu', label: 'Loại phiếu' },
     { id: 'id_don_hang', label: 'Mã đơn hàng' },
     { id: 'co_so', label: 'Cơ sở' },
@@ -89,6 +94,8 @@ const InventoryManagementPage: React.FC = () => {
 
   useEffect(() => {
     loadRecords();
+    // Load services for dropdown
+    getServices().then(setServices).catch(console.error);
   }, [loadRecords]);
 
   useEffect(() => {
@@ -135,13 +142,15 @@ const InventoryManagementPage: React.FC = () => {
     return num.toLocaleString('vi-VN');
   };
 
-  const handleOpenModal = (record?: InventoryRecord) => {
+  const handleOpenModal = async (record?: InventoryRecord) => {
     if (record) {
       setEditingRecord(record);
       setFormData({ ...record });
     } else {
       setEditingRecord(null);
+      const autoId = await getNextInventoryId();
       setFormData({
+        id_xuat_nhap_kho: autoId,
         loai_phieu: 'Nhập kho',
         id_don_hang: '',
         co_so: 'Cơ sở Bắc Giang',
@@ -178,6 +187,18 @@ const InventoryManagementPage: React.FC = () => {
         newData.tong_tien = soLuong * gia;
         return newData;
       });
+    } else if (name === 'loai_phieu') {
+      const isNhap = value === 'Nhập kho' || value === 'Phiếu nhập';
+      setFormData(prev => {
+        const selectedService = services.find(s => s.ten_dich_vu === prev.ten_mat_hang);
+        const next = { ...prev, [name]: value };
+        if (selectedService) {
+          const gia = isNhap ? selectedService.gia_nhap : selectedService.gia_ban;
+          next.gia = gia;
+          next.tong_tien = (prev.so_luong || 0) * gia;
+        }
+        return next;
+      });
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
@@ -194,6 +215,7 @@ const InventoryManagementPage: React.FC = () => {
       // Vì data layer chưa có updateRecord, hiện tại ta chỉ mô phỏng Add.
       // Bạn có thể update inventoryData.ts sao cho fetch cả id để update.
       await addInventoryRecord({
+        id_xuat_nhap_kho: formData.id_xuat_nhap_kho || null,
         loai_phieu: formData.loai_phieu || 'Nhập kho',
         id_don_hang: formData.id_don_hang || '',
         co_so: formData.co_so || 'Cơ sở Bắc Giang',
@@ -261,6 +283,9 @@ const InventoryManagementPage: React.FC = () => {
         const ws = wb.Sheets[wb.SheetNames[0]];
         const data = XLSX.utils.sheet_to_json(ws) as any[];
 
+        const services = await getServices();
+        const serviceMap = new Map(services.map(s => [s.id_dich_vu?.trim().toLowerCase(), s.ten_dich_vu]));
+
         const formattedData: (Omit<InventoryRecord, 'id' | 'created_at'> & { id?: string })[] = data.map(item => {
           const norm: any = {};
           Object.keys(item).forEach(k => {
@@ -300,13 +325,19 @@ const InventoryManagementPage: React.FC = () => {
           const gia = Math.round(Number(getValue(['Giá', 'giá', 'đơn giá', 'price'])) || 0);
           const tong_tien = Math.round(Number(getValue(['Tổng tiền', 'thành tiền', 'tổng', 'total'])) || (so_luong * gia));
 
+          const rawItemValue = String(getValue(['Tên mặt hàng', 'tên', 'sản phẩm', 'item_name']) || '').trim();
+          // Tra cứu tên dịch vụ từ mã DV
+          const lookupName = rawItemValue ? serviceMap.get(rawItemValue.toLowerCase()) : null;
+          const ten_mat_hang = lookupName || rawItemValue || 'Mặt hàng mới';
+
           const record: any = {
+            id_xuat_nhap_kho: String(getValue(['id', 'ID', 'uuid', 'mã', 'Mã Phiếu']) || '').trim(),
             ngay: formatExcelDate(getValue(['Ngày', 'ngày', 'date'])) || new Date().toISOString().split('T')[0],
             gio: formatExcelTime(getValue(['Giờ', 'giờ', 'time'])),
             loai_phieu: getValue(['Loại phiếu', 'loại', 'type']) || 'Nhập kho',
             id_don_hang: String(getValue(['id đơn hàng', 'ID đơn hàng', 'order_id', 'mã đơn']) || '').trim(),
             co_so: getValue(['Cơ sở', 'cơ sở', 'chi nhánh', 'branch']) || 'Cơ sở Bắc Giang',
-            ten_mat_hang: String(getValue(['Tên mặt hàng', 'tên', 'sản phẩm', 'item_name']) || 'Mặt hàng mới').trim(),
+            ten_mat_hang,
             so_luong,
             gia,
             tong_tien,
@@ -314,7 +345,7 @@ const InventoryManagementPage: React.FC = () => {
           };
 
           const rawId = String(getValue(['id', 'ID', 'uuid', 'mã']) || '').trim();
-          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
           if (rawId && uuidRegex.test(rawId)) {
             record.id = rawId;
           }
@@ -539,7 +570,8 @@ const InventoryManagementPage: React.FC = () => {
               <thead>
                 <tr className="bg-muted border-b border-border text-muted-foreground text-[12px] font-bold uppercase tracking-wider">
                   <th className="px-4 py-3 w-10 text-center"><input className="rounded border-border text-primary size-4" type="checkbox" /></th>
-                  {visibleColumns.includes('id') && <th className="px-4 py-3 font-semibold">ID</th>}
+                  {visibleColumns.includes('id_xuat_nhap_kho') && <th className="px-4 py-3 font-semibold">Mã Phiếu</th>}
+                  {visibleColumns.includes('id') && <th className="px-4 py-3 font-semibold">UUID</th>}
                   {visibleColumns.includes('loai_phieu') && <th className="px-4 py-3 font-semibold text-center">Loại phiếu</th>}
                   {visibleColumns.includes('id_don_hang') && <th className="px-4 py-3 font-semibold">Mã đơn hàng</th>}
                   {visibleColumns.includes('ten_mat_hang') && <th className="px-4 py-3 font-semibold">Sản phẩm</th>}
@@ -564,6 +596,7 @@ const InventoryManagementPage: React.FC = () => {
                 ) : records.map((record: InventoryRecord) => (
                     <tr key={record.id} className="hover:bg-muted/80 transition-colors">
                       <td className="px-4 py-4 text-center"><input className="rounded border-border text-primary size-4" type="checkbox" /></td>
+                      {visibleColumns.includes('id_xuat_nhap_kho') && <td className="px-4 py-4 font-bold text-blue-600 whitespace-nowrap">{record.id_xuat_nhap_kho || '—'}</td>}
                       {visibleColumns.includes('id') && <td className="px-4 py-4 font-mono text-[10px] text-muted-foreground max-w-[80px] truncate" title={record.id}>{record.id}</td>}
                       {visibleColumns.includes('loai_phieu') && (
                         <td className="px-4 py-4 text-center">
@@ -619,7 +652,14 @@ const InventoryManagementPage: React.FC = () => {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="font-semibold text-foreground text-[14px] truncate">{record.ten_mat_hang}</span>
+                        <div className="flex items-center gap-2 min-w-0">
+                          {record.id_xuat_nhap_kho && (
+                            <span className="bg-blue-50 text-blue-600 text-[10px] px-1.5 py-0.5 rounded font-bold border border-blue-100 shrink-0">
+                              {record.id_xuat_nhap_kho}
+                            </span>
+                          )}
+                          <span className="font-semibold text-foreground text-[14px] truncate">{record.ten_mat_hang}</span>
+                        </div>
                         <span className={clsx(
                           "px-1.5 py-0.5 rounded text-[9px] font-bold uppercase shrink-0 ml-2 border",
                           record.loai_phieu === 'Nhập kho' ? "bg-teal-50 text-teal-600 border-teal-100" : "bg-orange-50 text-orange-600 border-orange-100"
@@ -723,8 +763,34 @@ const InventoryManagementPage: React.FC = () => {
                 </div>
 
                 <InputField label="Mã Đơn hàng" name="id_don_hang" value={formData.id_don_hang} onChange={handleInputChange} icon={Hash} placeholder="ĐH-0001..." />
+
+                <InputField label="Mã Phiếu Xuất/Nhập" name="id_xuat_nhap_kho" value={formData.id_xuat_nhap_kho || ''} onChange={handleInputChange} icon={List} />
                 
-                <InputField label="Tên mặt hàng" name="ten_mat_hang" value={formData.ten_mat_hang} onChange={handleInputChange} icon={Package} placeholder="Nhập tên sản phẩm..." required />
+                <div className="space-y-1.5">
+                  <label className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                    <Package size={14} className="text-primary/70" />
+                    Tên mặt hàng <span className="text-red-500">*</span>
+                  </label>
+                  <SearchableSelect 
+                    options={services.map(s => ({ value: s.ten_dich_vu, label: `${s.id_dich_vu || 'DV'}: ${s.ten_dich_vu}` }))}
+                    value={formData.ten_mat_hang}
+                    onValueChange={(val) => {
+                      const selectedService = services.find(s => s.ten_dich_vu === val);
+                      setFormData(prev => {
+                        const next = { ...prev, ten_mat_hang: val };
+                        if (selectedService) {
+                          // Tự động điền giá dựa trên loại phiếu
+                          const isNhap = prev.loai_phieu === 'Nhập kho' || prev.loai_phieu === 'Phiếu nhập';
+                          const gia = isNhap ? selectedService.gia_nhap : selectedService.gia_ban;
+                          next.gia = gia;
+                          next.tong_tien = (prev.so_luong || 0) * gia;
+                        }
+                        return next;
+                      });
+                    }}
+                    placeholder="Tìm theo tên hoặc mã DV..."
+                  />
+                </div>
                 
                 <InputField label="Số lượng" name="so_luong" type="text" value={formatNumber(formData.so_luong)} onChange={handleInputChange} icon={Hash} />
                 

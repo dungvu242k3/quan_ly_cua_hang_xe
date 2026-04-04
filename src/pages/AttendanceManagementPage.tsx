@@ -23,7 +23,7 @@ import * as XLSX from 'xlsx';
 import Pagination from '../components/Pagination';
 import { useAuth } from '../context/AuthContext';
 import type { AttendanceRecord } from '../data/attendanceData';
-import { bulkUpsertAttendanceRecords, deleteAttendanceRecord, getAttendancePaginated, upsertAttendanceRecord } from '../data/attendanceData';
+import { bulkUpsertAttendanceRecords, deleteAttendanceRecord, getAttendancePaginated, getNextAttendanceId, upsertAttendanceRecord } from '../data/attendanceData';
 import { getPersonnel, type NhanSu } from '../data/personnelData';
 
 const AttendanceManagementPage: React.FC = () => {
@@ -55,10 +55,11 @@ const AttendanceManagementPage: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [visibleColumns, setVisibleColumns] = useState<string[]>([
-    'anh', 'nhan_su', 'ngay', 'checkin', 'checkout', 'vi_tri', 'actions'
+    'id_cham_cong', 'anh', 'nhan_su', 'ngay', 'checkin', 'checkout', 'vi_tri', 'actions'
   ]);
 
   const allColumns = [
+    { id: 'id_cham_cong', label: 'Mã CC' },
     { id: 'anh', label: 'Ảnh' },
     { id: 'nhan_su', label: 'Nhân sự' },
     { id: 'ngay', label: 'Ngày' },
@@ -137,7 +138,10 @@ const AttendanceManagementPage: React.FC = () => {
       const todayStr = new Date().toISOString().split('T')[0];
       const fallbackName = currentUser?.ho_ten || 'Tài khoản đăng nhập';
 
+      const autoId = await getNextAttendanceId();
+
       setFormData({
+        id_cham_cong: autoId,
         nhan_su: fallbackName,
         ngay: todayStr,
         checkin: '',
@@ -245,7 +249,7 @@ const AttendanceManagementPage: React.FC = () => {
   const handleDownloadTemplate = () => {
     const templateData = [
       {
-        "id": "",
+        "id": "CC-001",
         "Ngày": "2024-03-24",
         "Checkin": "08:00",
         "Checkout": "17:30",
@@ -353,10 +357,15 @@ const AttendanceManagementPage: React.FC = () => {
           };
 
           const rawId = norm["id"] ? String(norm["id"]).trim() : '';
-          // Strict UUID validation
-          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-          if (rawId && uuidRegex.test(rawId)) {
-            record.id = rawId;
+          
+          if (rawId) {
+            record.id_cham_cong = rawId;
+            
+            // Nếu là UUID hợp lệ, dùng làm khóa chính để cập nhật thay vì thêm mới
+            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+            if (uuidRegex.test(rawId)) {
+              record.id = rawId;
+            }
           }
 
           return record;
@@ -561,6 +570,7 @@ const AttendanceManagementPage: React.FC = () => {
               <thead>
                 <tr className="bg-muted border-b border-border text-muted-foreground text-[12px] font-bold uppercase tracking-wider">
                   <th className="px-4 py-3 w-10 text-center"><input className="rounded border-border text-primary size-4" type="checkbox" /></th>
+                  {visibleColumns.includes('id_cham_cong') && <th className="px-4 py-3 font-semibold">Mã CC</th>}
                   {visibleColumns.includes('anh') && <th className="px-4 py-3 font-semibold">Ảnh</th>}
                   {visibleColumns.includes('nhan_su') && <th className="px-4 py-3 font-semibold">Nhân sự</th>}
                   {visibleColumns.includes('ngay') && <th className="px-4 py-3 font-semibold">Ngày</th>}
@@ -581,6 +591,9 @@ const AttendanceManagementPage: React.FC = () => {
                 ) : records.map(record => (
                   <tr key={record.id} className="hover:bg-muted/80 transition-colors">
                     <td className="px-4 py-4 text-center"><input className="rounded border-border text-primary size-4" type="checkbox" /></td>
+                    {visibleColumns.includes('id_cham_cong') && (
+                      <td className="px-4 py-4 font-medium text-blue-600">{record.id_cham_cong || '—'}</td>
+                    )}
                     {visibleColumns.includes('anh') && (
                       <td className="px-4 py-4">
                         <div className="w-10 h-10 rounded bg-primary/10 flex items-center justify-center text-primary overflow-hidden border border-border shadow-sm">
@@ -650,7 +663,14 @@ const AttendanceManagementPage: React.FC = () => {
                     {/* Info */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="font-semibold text-foreground text-[14px] truncate">{record.nhan_su}</span>
+                        <div className="flex items-center gap-2 min-w-0">
+                          {record.id_cham_cong && (
+                            <span className="bg-blue-50 text-blue-600 text-[10px] px-1.5 py-0.5 rounded font-bold border border-blue-100 shrink-0">
+                              {record.id_cham_cong}
+                            </span>
+                          )}
+                          <span className="font-semibold text-foreground text-[14px] truncate">{record.nhan_su}</span>
+                        </div>
                         <span className="text-[11px] text-muted-foreground shrink-0 ml-2">{formatDateForDisplay(record.ngay)}</span>
                       </div>
                       <div className="flex items-center gap-4 text-[13px]">
@@ -722,6 +742,22 @@ const AttendanceManagementPage: React.FC = () => {
                     <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
                   </div>
                 </div>
+
+                {isAdmin && (
+                  <div className="space-y-1.5">
+                    <label className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                      <List size={14} className="text-primary/70" />
+                      Mã chấm công (ID)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Nhập mã CC (ví dụ: CC-001)"
+                      value={formData.id_cham_cong || ''}
+                      onChange={(e) => setFormData(prev => ({ ...prev, id_cham_cong: e.target.value }))}
+                      className="w-full px-4 py-2.5 bg-card border border-border rounded-xl font-bold text-[14px] text-foreground focus:ring-2 focus:ring-primary/20 outline-none transition-all placeholder:font-normal placeholder:text-muted-foreground/50"
+                    />
+                  </div>
+                )}
 
                 <div className="space-y-1.5">
                   <label className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">

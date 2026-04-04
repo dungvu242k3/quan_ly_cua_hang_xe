@@ -11,6 +11,7 @@ import {
   Trash2,
   User,
   UserPlus, X,
+  Loader2,
 } from 'lucide-react';
 import React from 'react';
 import { createPortal } from 'react-dom';
@@ -25,6 +26,8 @@ interface Props {
   formState: CandidateFormState;
   setFormField: <K extends keyof CandidateFormState>(key: K, value: CandidateFormState[K]) => void;
   positionOptions: FilterOption[];
+  onSave: () => void;
+  isSaving: boolean;
 }
 
 const AddEditCandidateDialog: React.FC<Props> = ({
@@ -35,12 +38,14 @@ const AddEditCandidateDialog: React.FC<Props> = ({
   formState,
   setFormField,
   positionOptions,
+  onSave,
+  isSaving,
 }) => {
   if (!isOpen && !isClosing) return null;
 
   const {
     formName, formEmail, formPhone, formAddress, formBirthDate,
-    formSource, formPosition, formStatus, formLatestInterview,
+    formSource, formPosition, formCandidateCode, formStatus, formLatestInterview,
     formLatestResult, formInternalNotes, formDocuments,
   } = formState;
 
@@ -96,6 +101,23 @@ const AddEditCandidateDialog: React.FC<Props> = ({
               <span className="text-[12px] font-bold text-primary uppercase tracking-wider">Thông tin cá nhân</span>
             </div>
             <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-bold text-foreground lowercase">Mã ứng viên <span className="text-red-500">*</span></label>
+                <div className="relative">
+                  <FileText className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/40" size={16} />
+                  <input
+                    type="text"
+                    placeholder="UV-XXXX"
+                    value={formCandidateCode}
+                    onChange={e => setFormField('formCandidateCode', e.target.value)}
+                    className={clsx(
+                      "w-full pl-10 pr-4 py-2 bg-muted/10 border border-border rounded-xl text-[13px] font-bold text-primary focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all",
+                      isEditMode && "opacity-70 bg-muted cursor-not-allowed"
+                    )}
+                    disabled={isEditMode}
+                  />
+                </div>
+              </div>
               <div className="space-y-1.5">
                 <label className="text-[13px] font-bold text-foreground">Họ tên <span className="text-red-500">*</span></label>
                 <div className="relative">
@@ -371,10 +393,21 @@ const AddEditCandidateDialog: React.FC<Props> = ({
           >
             Hủy
           </button>
-          <button className="flex items-center gap-2 px-8 py-2 rounded-xl bg-primary text-white text-[13px] font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all group">
-            <Plus size={18} />
+          <button 
+            onClick={onSave}
+            disabled={isSaving}
+            className={clsx(
+              "flex items-center gap-2 px-8 py-2 rounded-xl bg-primary text-white text-[13px] font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all group",
+              isSaving && "opacity-70 cursor-not-allowed"
+            )}
+          >
+            {isSaving ? (
+              <Loader2 className="animate-spin" size={18} />
+            ) : (
+              <Plus size={18} />
+            )}
             {isEditMode ? 'Lưu thay đổi' : 'Thêm mới'}
-            <ChevronRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
+            {!isSaving && <ChevronRight size={16} className="group-hover:translate-x-0.5 transition-transform" />}
           </button>
         </div>
       </div>

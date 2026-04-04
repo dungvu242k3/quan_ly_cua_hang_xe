@@ -441,10 +441,11 @@ const SalesCardManagementPage: React.FC = () => {
 
           const rawSalesId = String(getValue(['id', 'mã phiếu', 'id_bh', 'mã', 'uuid']) || '').trim();
           const excelCustId = String(getValue(['id khách hàng', 'mã khách hàng', 'cust id', 'khách hàng id']) || '').trim();
-
-          const tenNhanVien = String(getValue(['người phụ trách', 'ngươi phụ trách', 'nhân viên', 'tên nhân viên', 'phụ trách', 'kỹ thuật', 'thợ']) || '').trim();
+          const rawNhanVien = String(getValue(['người phụ trách', 'ngươi phụ trách', 'nhân viên', 'tên nhân viên', 'phụ trách', 'kỹ thuật', 'thợ']) || '').trim();
+          // Normalize: replace line breaks or semicolons with commas
+          const tenNhanVien = rawNhanVien.replace(/[\n\r;]+/g, ', ').replace(/\s{2,}/g, ' ');
           
-          const tenDichVu = String(getValue(['dịch vụ sử dụng', 'dịch vụ', 'tên dịch vụ', 'service', 'sản phẩm', 'loại', 'hạng mục']) || '').trim();
+          const tenDichVu = String(getValue(['dịch vụ sử dụng', 'dịch vụ', 'tên dịch vụ', 'service', ' sản phẩm', 'loại', 'hạng mục']) || '').trim();
 
           let ngay = formatExcelDate(getValue(['ngày', 'ngày lập', 'ngay', 'date', 'thời gian']));
           if (!ngay) ngay = new Date().toISOString().split('T')[0];
@@ -646,7 +647,7 @@ const SalesCardManagementPage: React.FC = () => {
           ) : displayItems.length > 0 ? (
             displayItems.map(card => {
               const items = (card as any).the_ban_hang_ct || [];
-              const totalAmount = items.reduce((sum: number, ct: any) => sum + (ct.gia_ban * (ct.so_luong || 1)), 0);
+              const totalAmount = items.reduce((sum: number, ct: any) => sum + (ct.thanh_tien || (ct.gia_ban * (ct.so_luong || 1))), 0);
               const branch = items.length > 0 ? items[0].co_so : (card.dich_vu?.co_so || 'Cơ sở chính');
 
               return (
@@ -688,10 +689,17 @@ const SalesCardManagementPage: React.FC = () => {
                     <div className="flex items-center justify-between text-[13px]">
                       <div className="flex flex-col gap-0.5">
                         <div className="text-muted-foreground text-[11px]">Người phụ trách / Cơ sở</div>
-                        <div className="font-bold text-foreground flex items-center gap-1.5">
-                          👤 {card.nhan_su?.ho_ten || 'N/A'}
-                          <span className="text-muted-foreground/30 px-1">|</span>
-                          🏢 {branch}
+                        <div className="font-bold text-foreground flex flex-col gap-0.5">
+                          {card.nhan_su_list && card.nhan_su_list.length > 0 ? (
+                            card.nhan_su_list.map((p, idx) => (
+                              <div key={idx} className="flex items-center gap-1.5 truncate max-w-[150px]">
+                                👤 {p.ho_ten}
+                              </div>
+                            ))
+                          ) : (
+                            <div className="flex items-center gap-1.5">👤 {card.nhan_vien_id || 'N/A'}</div>
+                          )}
+                          <div className="flex items-center gap-1.5 opacity-60 text-[11px]">🏢 {branch}</div>
                         </div>
                       </div>
                       <div className="text-right">
@@ -744,7 +752,7 @@ const SalesCardManagementPage: React.FC = () => {
                   {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(
                     displayItems.reduce((grandSum, card) => {
                       const items = (card as any).the_ban_hang_ct || [];
-                      return grandSum + items.reduce((sum: number, ct: any) => sum + (ct.gia_ban * (ct.so_luong || 1)), 0);
+                      return grandSum + items.reduce((sum: number, ct: any) => sum + (ct.thanh_tien || (ct.gia_ban * (ct.so_luong || 1))), 0);
                     }, 0)
                   )}
                 </span>
@@ -767,6 +775,7 @@ const SalesCardManagementPage: React.FC = () => {
                   <th className="px-4 py-3 font-semibold">Người phụ trách</th>
                   <th className="px-4 py-3 font-semibold text-center">ĐÁNH GIÁ DỊCH VỤ</th>
                   <th className="px-4 py-3 font-semibold">Dịch vụ sử dụng</th>
+                  <th className="px-4 py-3 font-semibold text-right">Tổng tiền</th>
                   <th className="px-4 py-3 font-semibold text-right">Số Km</th>
                   <th className="px-4 py-3 font-semibold text-center">Ngày nhắc thay dầu</th>
                   <th className="px-4 py-3 text-center font-semibold">Thao tác</th>
@@ -775,7 +784,7 @@ const SalesCardManagementPage: React.FC = () => {
               <tbody className="divide-y divide-slate-100 text-[14px]">
                 {loading ? (
                   <tr>
-                    <td colSpan={11} className="px-4 py-12 text-center text-muted-foreground">
+                    <td colSpan={12} className="px-4 py-12 text-center text-muted-foreground">
                       <Loader2 className="animate-spin inline-block mr-2" size={20} />
                       Đang tải dữ liệu phiếu bán hàng...
                     </td>
@@ -794,11 +803,19 @@ const SalesCardManagementPage: React.FC = () => {
                     <td className="px-4 py-4 font-bold text-primary">{card.khach_hang?.ho_va_ten || 'N/A'}</td>
                     <td className="px-4 py-4 text-muted-foreground">{card.khach_hang?.so_dien_thoai || 'N/A'}</td>
                     <td className="px-4 py-4">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold">
-                          {(card.nhan_su?.ho_ten || 'X')[0]}
-                        </div>
-                        {card.nhan_su?.ho_ten || 'Chưa phân công'}
+                      <div className="flex flex-col gap-1">
+                        {card.nhan_su_list && card.nhan_su_list.length > 0 ? (
+                          card.nhan_su_list.map((p, idx) => (
+                            <div key={idx} className="flex items-center gap-2">
+                              <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold shrink-0">
+                                {(p.ho_ten || 'X')[0]}
+                              </div>
+                              <span className="font-bold whitespace-nowrap">{p.ho_ten}</span>
+                            </div>
+                          ))
+                        ) : (
+                          <span className="text-muted-foreground italic font-medium">{card.nhan_vien_id || 'N/A'}</span>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-4 text-center text-muted-foreground">—</td>
@@ -816,6 +833,11 @@ const SalesCardManagementPage: React.FC = () => {
                           </span>
                         )}
                       </div>
+                    </td>
+                    <td className="px-4 py-4 text-right font-black text-primary">
+                      {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(
+                        ((card as any).the_ban_hang_ct || []).reduce((sum: number, ct: any) => sum + (ct.thanh_tien || (ct.gia_ban * (ct.so_luong || 1))), 0)
+                      )}
                     </td>
                     <td className="px-4 py-4 text-right font-mono font-bold text-foreground">{card.so_km?.toLocaleString()} km</td>
                     <td className="px-4 py-4 text-center">

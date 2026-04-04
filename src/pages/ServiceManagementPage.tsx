@@ -20,7 +20,7 @@ import * as XLSX from 'xlsx';
 import Pagination from '../components/Pagination';
 import ServiceFormModal from '../components/ServiceFormModal';
 import type { DichVu } from '../data/serviceData';
-import { bulkUpsertServices, deleteAllServices, deleteService, getServicesPaginated, upsertService } from '../data/serviceData';
+import { bulkUpsertServices, deleteAllServices, deleteService, getNextServiceCode, getServicesPaginated, upsertService } from '../data/serviceData';
 
 const ServiceManagementPage: React.FC = () => {
   const navigate = useNavigate();
@@ -98,14 +98,16 @@ const ServiceManagementPage: React.FC = () => {
     });
   };
 
-  const handleOpenModal = (service?: DichVu) => {
+  const handleOpenModal = async (service?: DichVu) => {
     setIsReadOnlyModal(false);
     if (service) {
       setEditingService(service);
       setFormData({ ...service });
     } else {
       setEditingService(null);
+      const nextCode = await getNextServiceCode();
       setFormData({
+        id_dich_vu: nextCode,
         co_so: 'Cơ sở Bắc Giang',
         ten_dich_vu: '',
         gia_nhap: 0,

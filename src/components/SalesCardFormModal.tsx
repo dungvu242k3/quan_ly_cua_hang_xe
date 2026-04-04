@@ -6,6 +6,7 @@ import type { KhachHang } from '../data/customerData';
 import type { NhanSu } from '../data/personnelData';
 import type { DichVu } from '../data/serviceData';
 import { SearchableSelect } from './ui/SearchableSelect';
+import { MultiSearchableSelect } from './ui/MultiSearchableSelect';
 import CustomerFormModal from './CustomerFormModal';
 
 // Helper for dynamic classes
@@ -62,8 +63,8 @@ const SalesCardFormModal: React.FC<{
 
   // Memoize heavy options so dropdowns don't re-render on every keystroke
   const customerOptions = React.useMemo(() => customers.map(c => ({
-    value: c.ma_khach_hang || c.id,
-    label: c.ma_khach_hang ? `${c.ho_va_ten} (${c.ma_khach_hang})` : c.ho_va_ten
+    value: c.id,
+    label: `${c.ho_va_ten}${c.so_dien_thoai ? ' - ' + c.so_dien_thoai : ''}`
   })), [customers]);
 
   // Sync service information based on dich_vu_id (which is now TEXT/Name)
@@ -172,10 +173,10 @@ const SalesCardFormModal: React.FC<{
                   <User size={14} className="text-primary/70" />
                   Người phụ trách (Nhân viên) <span className="text-red-500">*</span>
                 </label>
-                <SearchableSelect
+                <MultiSearchableSelect
                   options={personnel.map(p => ({ value: p.ho_ten, label: `${p.ho_ten} (${p.vi_tri})` }))}
-                  value={formData.nhan_vien_id || undefined}
-                  onValueChange={(val: string) => !isReadOnly && setFormData(prev => ({ ...prev, nhan_vien_id: val }))}
+                  value={formData.nhan_vien_id ? formData.nhan_vien_id.split(',').map(s => s.trim()) : []}
+                  onValueChange={(vals: string[]) => !isReadOnly && setFormData(prev => ({ ...prev, nhan_vien_id: vals.join(', ') }))}
                   placeholder="-- Chọn nhân viên --"
                   searchPlaceholder="Tìm tên, vị trí..."
                   className={clsx("font-bold overflow-hidden", isReadOnly && "pointer-events-none opacity-80")}

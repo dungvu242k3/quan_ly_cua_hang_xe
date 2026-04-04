@@ -29,11 +29,12 @@ const PersonnelFormModal: React.FC<PersonnelFormModalProps> = React.memo(({
 
   useEffect(() => {
     if (isOpen) {
+      setFormData(initialData);
       setTimeout(() => {
         nameInputRef.current?.focus();
       }, 100);
     }
-  }, [isOpen]);
+  }, [isOpen, initialData]);
 
   if (!isOpen) return null;
 

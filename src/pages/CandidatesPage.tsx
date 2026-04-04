@@ -1,31 +1,78 @@
 import {
   Users, Search, Plus, Filter,
   Mail, Phone, Calendar,
-  ChevronRight, ChevronLeft, Download, Edit2, Eye, Trash2
+  ChevronRight, ChevronLeft, Download, Edit2, Eye, Trash2,
+  Loader2,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { candidatesData, statusConfig, positionOptions, mockInterviewSessions } from './candidates/data';
+import { statusConfig, positionOptions, mockInterviewSessions } from './candidates/data';
 import AddEditCandidateDialog from './candidates/dialogs/AddEditCandidateDialog';
 import CandidateDetailDialog from './candidates/dialogs/CandidateDetailDialog';
 import PersonnelDailyStatsModal from '../components/PersonnelDailyStatsModal';
 import { motion } from 'framer-motion';
+import { useEffect } from 'react';
+import { getCandidatesPaginated, getNextCandidateCode, upsertCandidate, deleteCandidate } from '../data/candidateData';
+import type { Candidate, CandidateFormState } from './candidates/types';
 
 const CandidatesPage: React.FC = () => {
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [totalCount, setTotalCount] = useState(0);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [selectedCandidate, setSelectedCandidate] = useState<any>(null);
+  const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [candidateDetailOpen, setCandidateDetailOpen] = useState(false);
 
   const [isStatsModalOpen, setIsStatsModalOpen] = useState(false);
   const [selectedStatsPerson, setSelectedStatsPerson] = useState<{ id: string, ho_ten: string } | null>(null);
 
-  const filteredCandidates = candidatesData.filter(c => 
-    c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.position.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const [formState, setFormState] = useState<CandidateFormState>({
+    formName: '',
+    formEmail: '',
+    formPhone: '',
+    formAddress: '',
+    formBirthYear: '',
+    formBirthDate: '',
+    formSource: '',
+    formPosition: '',
+    formCandidateCode: '',
+    formStatus: 'new',
+    formLatestInterview: '',
+    formLatestResult: '',
+    formInternalNotes: '',
+    formDocuments: []
+  });
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const loadData = React.useCallback(async () => {
+    try {
+      setLoading(true);
+      const result = await getCandidatesPaginated(1, 100, debouncedSearch);
+      setCandidates(result.data);
+      setTotalCount(result.totalCount);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  }, [debouncedSearch]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const filteredCandidates = candidates;
 
   const navigate = useNavigate();
 
@@ -64,7 +111,27 @@ const CandidatesPage: React.FC = () => {
             Xuất file
           </button>
           <button 
-            onClick={() => setIsAddDialogOpen(true)}
+            onClick={async () => {
+              const nextCode = await getNextCandidateCode();
+              setFormState({
+                formName: '',
+                formEmail: '',
+                formPhone: '',
+                formAddress: '',
+                formBirthYear: '',
+                formBirthDate: '',
+                formSource: '',
+                formPosition: '',
+                formCandidateCode: nextCode,
+                formStatus: 'new',
+                formLatestInterview: '',
+                formLatestResult: '',
+                formInternalNotes: '',
+                formDocuments: []
+              });
+              setSelectedCandidate(null);
+              setIsAddDialogOpen(true);
+            }}
             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-white text-[13px] font-bold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20"
           >
             <Plus size={18} />
@@ -143,7 +210,7 @@ const CandidatesPage: React.FC = () => {
                   <td className="px-6 py-4">
                     <div className="flex flex-col">
                       <span className="text-[13px] font-medium text-foreground">{candidate.position}</span>
-                      <span className="text-[11px] text-muted-foreground mt-0.5">{candidate.positionId}</span>
+                      <span className="text-[11px] font-mono text-primary mt-0.5 font-bold uppercase">{candidate.id_ung_vien}</span>
                     </div>
                   </td>
                   <td className="px-6 py-4">
@@ -167,17 +234,59 @@ const CandidatesPage: React.FC = () => {
                       <button onClick={(e) => { e.stopPropagation(); setSelectedStatsPerson({ id: candidate.id, ho_ten: candidate.name }); setIsStatsModalOpen(true); }} className="p-2 hover:bg-emerald-50 text-emerald-600 rounded-lg transition-colors" title="Xem KPI trong ngày">
                         <Eye size={16} />
                       </button>
-                      <button className="p-2 hover:bg-primary/10 text-primary rounded-lg transition-colors" title="Sửa">
+                      <button 
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          setFormState({
+                            formName: candidate.name,
+                            formEmail: candidate.email,
+                            formPhone: candidate.phone,
+                            formAddress: '', // Fallback or mapping
+                            formBirthYear: candidate.birthYear,
+                            formBirthDate: '', // Fallback or mapping
+                            formSource: candidate.source,
+                            formPosition: candidate.positionId,
+                            formCandidateCode: candidate.id_ung_vien || '',
+                            formStatus: candidate.status,
+                            formLatestInterview: candidate.latestInterview,
+                            formLatestResult: candidate.latestResult,
+                            formInternalNotes: '', // Mapping needed
+                            formDocuments: candidate.documents || []
+                          });
+                          setSelectedCandidate(candidate); 
+                          setIsAddDialogOpen(true); 
+                        }} 
+                        className="p-2 hover:bg-primary/10 text-primary rounded-lg transition-colors" 
+                        title="Sửa"
+                      >
                         <Edit2 size={16} />
                       </button>
-                      <button className="p-2 hover:bg-red-50 text-red-500 rounded-lg transition-colors" title="Xóa">
+                      <button 
+                        onClick={async (e) => { 
+                          e.stopPropagation(); 
+                          if (window.confirm('Bạn có chắc muốn xóa ứng viên này?')) {
+                            await deleteCandidate(candidate.id);
+                            loadData();
+                          }
+                        }} 
+                        className="p-2 hover:bg-red-50 text-red-500 rounded-lg transition-colors" 
+                        title="Xóa"
+                      >
                         <Trash2 size={16} />
                       </button>
                     </div>
                   </td>
                 </tr>
               ))}
-              {filteredCandidates.length === 0 && (
+              {loading && (
+                <tr>
+                  <td colSpan={5} className="px-6 py-20 text-center">
+                    <Loader2 className="animate-spin inline-block mr-2" size={24} />
+                    Đang tải dữ liệu...
+                  </td>
+                </tr>
+              )}
+              {!loading && filteredCandidates.length === 0 && (
                 <tr>
                   <td colSpan={5} className="px-6 py-20 text-center">
                     <div className="flex flex-col items-center justify-center text-muted-foreground">
@@ -203,7 +312,7 @@ const CandidatesPage: React.FC = () => {
       {/* Simplified Pagination */}
       <div className="flex items-center justify-between mt-6 px-2">
         <p className="text-[13px] text-muted-foreground">
-          Hiển thị <span className="font-bold text-foreground">{filteredCandidates.length}</span> trên <span className="font-bold text-foreground">{candidatesData.length}</span> ứng viên
+          Hiển thị <span className="font-bold text-foreground">{filteredCandidates.length}</span> trên <span className="font-bold text-foreground">{totalCount}</span> ứng viên
         </p>
         <div className="flex items-center gap-2">
           <button disabled className="p-2 rounded-lg border border-border bg-card text-muted-foreground opacity-50 cursor-not-allowed">
@@ -223,25 +332,42 @@ const CandidatesPage: React.FC = () => {
         <AddEditCandidateDialog 
           isOpen={isAddDialogOpen}
           isClosing={false}
-          isEditMode={false}
-          onClose={() => setIsAddDialogOpen(false)}
-          formState={{
-            formName: '',
-            formEmail: '',
-            formPhone: '',
-            formAddress: '',
-            formBirthYear: '',
-            formBirthDate: '',
-            formSource: '',
-            formPosition: '',
-            formStatus: 'new',
-            formLatestInterview: '',
-            formLatestResult: '',
-            formInternalNotes: '',
-            formDocuments: []
+          isEditMode={!!selectedCandidate}
+          onClose={() => {
+            setIsAddDialogOpen(false);
+            setSelectedCandidate(null);
           }}
-          setFormField={() => {}}
+          formState={formState}
+          setFormField={(k, v) => setFormState(prev => ({ ...prev, [k]: v }))}
           positionOptions={positionOptions}
+          isSaving={loading}
+          onSave={async () => {
+            try {
+              setLoading(true);
+              const payload: Partial<Candidate> = {
+                id: selectedCandidate?.id,
+                name: formState.formName,
+                email: formState.formEmail,
+                phone: formState.formPhone,
+                birthYear: formState.formBirthYear,
+                position: positionOptions.find(p => p.id === formState.formPosition)?.label || formState.formPosition,
+                positionId: formState.formPosition,
+                id_ung_vien: formState.formCandidateCode,
+                status: formState.formStatus as any,
+                source: formState.formSource,
+                latestInterview: formState.formLatestInterview,
+                latestResult: formState.formLatestResult,
+                documents: formState.formDocuments
+              };
+              await upsertCandidate(payload);
+              setIsAddDialogOpen(false);
+              loadData();
+            } catch (err) {
+              alert('Lỗi khi lưu ứng viên: ' + (err as any).message);
+            } finally {
+              setLoading(false);
+            }
+          }}
         />
       )}
 
@@ -250,12 +376,33 @@ const CandidatesPage: React.FC = () => {
           candidateId={selectedCandidate?.id || null}
           isClosing={false}
           onClose={() => setCandidateDetailOpen(false)}
-          onEdit={() => {}}
+          onEdit={() => {
+            if (selectedCandidate) {
+              setFormState({
+                formName: selectedCandidate.name,
+                formEmail: selectedCandidate.email,
+                formPhone: selectedCandidate.phone,
+                formAddress: '',
+                formBirthYear: selectedCandidate.birthYear,
+                formBirthDate: '',
+                formSource: selectedCandidate.source,
+                formPosition: selectedCandidate.positionId,
+                formCandidateCode: selectedCandidate.id_ung_vien || '',
+                formStatus: selectedCandidate.status,
+                formLatestInterview: selectedCandidate.latestInterview,
+                formLatestResult: selectedCandidate.latestResult,
+                formInternalNotes: '',
+                formDocuments: selectedCandidate.documents || []
+              });
+              setCandidateDetailOpen(false);
+              setIsAddDialogOpen(true);
+            }
+          }}
           onAddDocument={() => {}}
           onOpenInterviewModal={() => {}}
           onOpenInterviewDetail={() => {}}
           onOpenInterviewEdit={() => {}}
-          candidatesData={candidatesData}
+          candidatesData={candidates}
           sessions={mockInterviewSessions}
         />
       )}

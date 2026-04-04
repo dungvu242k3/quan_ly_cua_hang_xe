@@ -3,6 +3,7 @@
 
 CREATE TABLE nhap_xuat_kho (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  id_xuat_nhap_kho text, -- Mã phiếu xuất nhập
   loai_phieu text NOT NULL, -- "Nhập kho" hoặc "Phiếu nhập"
   id_don_hang text, 
   co_so text, -- "Cơ sở Bắc Giang" hoặc "Cơ sở Bắc Ninh"

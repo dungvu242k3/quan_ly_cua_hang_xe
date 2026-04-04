@@ -1,7 +1,29 @@
 import { supabase } from '../lib/supabase';
 
+export const getNextInventoryId = async (): Promise<string> => {
+  const { data, error } = await supabase
+    .from('nhap_xuat_kho')
+    .select('id_xuat_nhap_kho')
+    .order('id_xuat_nhap_kho', { ascending: false })
+    .limit(1);
+
+  if (error || !data || data.length === 0 || !data[0].id_xuat_nhap_kho) {
+    return 'PXN-0001';
+  }
+
+  const lastId = data[0].id_xuat_nhap_kho;
+  const match = lastId.match(/PXN-(\d+)/);
+  if (match) {
+    const nextNumber = parseInt(match[1]) + 1;
+    return `PXN-${String(nextNumber).padStart(4, '0')}`;
+  }
+
+  return 'PXN-0001';
+};
+
 export interface InventoryRecord {
   id: string;
+  id_xuat_nhap_kho: string | null;
   loai_phieu: string; // 'Nhập kho' | 'Xuất kho'
   id_don_hang: string;
   co_so: string; // 'Cơ sở Bắc Giang' | 'Cơ sở Bắc Ninh'

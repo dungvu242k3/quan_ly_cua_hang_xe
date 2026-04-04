@@ -36,7 +36,8 @@ const SalesCardCTFormModal: React.FC<SalesCardCTFormModalProps> = React.memo(({
         setFormData({ ...editingItem });
       } else {
         setFormData({
-          don_hang_id: '',
+          id_ban_hang_ct: 'CT-' + Math.random().toString(36).substring(2, 9).toUpperCase(),
+          id_don_hang: '',
           ten_don_hang: '',
           san_pham: '',
           co_so: 'Cơ sở Bắc Giang',
@@ -50,6 +51,8 @@ const SalesCardCTFormModal: React.FC<SalesCardCTFormModalProps> = React.memo(({
       }
     }
   }, [isOpen, editingItem]);
+
+  // Update id_don_hang text when a UUID order is selected - No longer needed as we use id_don_hang directly
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -93,15 +96,33 @@ const SalesCardCTFormModal: React.FC<SalesCardCTFormModalProps> = React.memo(({
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-              {/* Link to Order Header */}
               <div className="space-y-1.5">
-                <label className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider">Chọn Đơn hàng (ID)</label>
+                <label className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider">Mã chi tiết (ID)</label>
+                <input
+                  type="text" name="id_ban_hang_ct" value={formData.id_ban_hang_ct || ''} onChange={handleInputChange}
+                  className="w-full px-4 py-2 bg-background border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/20 text-[14px] font-mono"
+                  placeholder="CT-XXXXX"
+                />
+              </div>
+
+              {/* Link to Order Header */}
+              <div className="space-y-1.5 text-blue-600">
+                <label className="text-[12px] font-bold uppercase tracking-wider">Mã đơn hàng (Số phiếu)</label>
+                <input
+                   type="text" name="id_don_hang" value={formData.id_don_hang || ''} onChange={handleInputChange}
+                   className="w-full px-4 py-2 bg-blue-50 border border-blue-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-600/20 text-[14px] font-black"
+                   placeholder="BH-XXXXXX"
+                />
+              </div>
+
+              <div className="space-y-1.5 md:col-span-2">
+                <label className="text-[12px] font-bold text-muted-foreground uppercase tracking-wider">Hoặc Chọn Đơn hàng từ danh sách</label>
                 <select
-                  name="don_hang_id" value={formData.don_hang_id || ''} onChange={handleInputChange}
+                  name="id_don_hang" value={formData.id_don_hang || ''} onChange={handleInputChange}
                   className="w-full px-4 py-2 bg-background border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/20 text-[14px]"
                 >
                   <option value="">-- Chọn đơn hàng gốc --</option>
-                  {salesCards.map(c => <option key={c.id} value={c.id}>{new Date(c.ngay).toLocaleDateString()} - {c.khach_hang?.ho_va_ten}</option>)}
+                  {salesCards.map(c => <option key={c.id} value={c.id_bh || c.id}>{c.id_bh || c.id.slice(0,8)} - {new Date(c.ngay).toLocaleDateString()} - {c.khach_hang?.ho_va_ten}</option>)}
                 </select>
               </div>
 

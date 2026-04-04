@@ -139,3 +139,29 @@ export const getPersonnelPaginated = async (
     totalCount: count || 0
   };
 };
+export const getNextPersonnelCode = async (): Promise<string> => {
+  const { data, error } = await supabase
+    .from('nhan_su')
+    .select('id_nhan_su')
+    .order('id_nhan_su', { ascending: false })
+    .limit(1);
+
+  if (error) {
+    console.error('Error fetching next personnel code:', error);
+    return 'NV-0001';
+  }
+
+  if (!data || data.length === 0 || !data[0].id_nhan_su) {
+    return 'NV-0001';
+  }
+
+  const lastCode = data[0].id_nhan_su;
+  const match = lastCode.match(/^NV-(\d+)$/);
+  
+  if (match) {
+    const nextNumber = parseInt(match[1]) + 1;
+    return `NV-${nextNumber.toString().padStart(4, '0')}`;
+  }
+
+  return `NV-${(data.length + 1).toString().padStart(4, '0')}`;
+};

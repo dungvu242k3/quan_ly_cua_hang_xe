@@ -14,13 +14,12 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import Pagination from '../components/Pagination';
 import SalesCardCTFormModal from '../components/SalesCardCTFormModal';
-import { getCustomers } from '../data/customerData';
 import type { SalesCardCT } from '../data/salesCardCTData';
 import { bulkUpsertSalesCardCTs, deleteAllSalesCardCTs, deleteSalesCardCT, getSalesCardCTsPaginated } from '../data/salesCardCTData';
 import type { SalesCard } from '../data/salesCardData';
 import { getSalesCards } from '../data/salesCardData'; // Header cards
 import type { DichVu } from '../data/serviceData';
-import { bulkUpsertServices, getServices } from '../data/serviceData';
+import { getServices } from '../data/serviceData';
 
 const SalesCardCTManagementPage: React.FC = () => {
   const navigate = useNavigate();
@@ -87,9 +86,9 @@ const SalesCardCTManagementPage: React.FC = () => {
   const handleDownloadTemplate = () => {
     const templateData = [
       {
-        "don_hang_id": "",
+        "id_don_hang": "BH-123456",
+        "id_ban_hang_ct": "CT-789",
         "Ngày": "2024-03-24",
-        "ID": "Optional: UUID format",
         "Tên đơn hàng": "Bảo dưỡng xe SH 2023",
         "Sản phẩm": "Thay dầu máy",
         "Cơ sở": "Cơ sở Bắc Giang",
@@ -138,94 +137,63 @@ const SalesCardCTManagementPage: React.FC = () => {
           return s || undefined;
         };
 
-        // --- FORCE IMPORT LOGIC ---
-
-        // Pass 1: Auto-create missing Services
-        const toUpsertServices: Partial<DichVu>[] = [];
-        const seenServiceKeys = new Set<string>();
-
-        data.forEach(item => {
-          const norm: any = {};
-          Object.keys(item).forEach(k => { norm[String(k).trim().toLowerCase().replace(/\s+/g, ' ')] = item[k]; });
-          const getValue = (keys: string[]) => {
-            const k = keys.find(z => norm[z.toLowerCase().replace(/\s+/g, ' ')] !== undefined);
-            return k ? norm[k.toLowerCase().replace(/\s+/g, ' ')] : undefined;
-          };
-
-          const productName = String(getValue(['Sản phẩm', 'sản phẩm', 'dịch vụ', 'item', 'tên sản phẩm']) || '').trim();
-          if (productName && !services.find(s => s.ten_dich_vu.toLowerCase() === productName.toLowerCase())) {
-            if (!seenServiceKeys.has(productName.toLowerCase())) {
-              seenServiceKeys.add(productName.toLowerCase());
-              toUpsertServices.push({
-                ten_dich_vu: productName,
-                gia_nhap: 0,
-                gia_ban: 0,
-                co_so: 'Cơ sở chính'
-              });
-            }
-          }
-        });
-
-        if (toUpsertServices.length > 0) {
-          await bulkUpsertServices(toUpsertServices);
-        }
-
-        // Re-fetch everything
-        const [latestSalesCards, latestCustomers, latestServices] = await Promise.all([
-          getSalesCards(),
-          getCustomers(),
-          getServices()
-        ]);
+        const latestServices = await getServices();
 
         const formattedData: Partial<SalesCardCT>[] = data.map((item) => {
           const norm: any = {};
-          Object.keys(item).forEach(k => { norm[String(k).trim().toLowerCase().replace(/\s+/g, ' ')] = item[k]; });
+          // Normalize keys: trim and replace multiple spaces with single space
+          Object.keys(item).forEach(k => { 
+            const cleanKey = String(k).trim().toLowerCase().replace(/\s+/g, ' ');
+            norm[cleanKey] = item[k]; 
+          });
+          
           const getValue = (keys: string[]) => {
             const k = keys.find(z => norm[z.toLowerCase().replace(/\s+/g, ' ')] !== undefined);
-            return k ? norm[k.toLowerCase().replace(/\s+/g, ' ')] : undefined;
+            const val = k ? norm[k.toLowerCase().replace(/\s+/g, ' ')] : undefined;
+            return (val === null || val === undefined) ? undefined : val;
           };
 
-          const rawDonHangId = String(getValue(['ID đơn hàng', 'Mã đơn hàng', 'id đơn hàng', 'don_hang_id', 'mã đơn hàng', 'phiếu id', 'mã phiếu', 'id khách hàng']) || '').trim();
+          const rawIdCT = String(getValue(['id']) || '').trim();
+          const rawDonHangId = String(getValue(['id đơn hàng']) || '').trim();
+          const rawProductName = String(getValue(['Sản phẩm']) || '').trim();
+          
+          // Use exactly what's in 'Tên đơn hàng'
+          const tenDonHangExcel = getValue(['Tên đơn hàng']);
 
-          // Match Parent Order
-          const parentOrder = latestSalesCards.find(card => {
-            const cleanCardId = card.id.replace(/-/g, '').toLowerCase();
-            const cleanRawId = rawDonHangId.replace(/-/g, '').toLowerCase();
-            const matchOrderId = cleanCardId === cleanRawId || (cleanRawId.length >= 6 && cleanCardId.startsWith(cleanRawId));
-
-            // Also check if the raw ID matches the customer attached to this card
-            const customerMatch = latestCustomers.find(c => {
-              const cleanCId = c.id.replace(/-/g, '').toLowerCase();
-              return cleanCId === cleanRawId || (cleanRawId && c.ma_khach_hang === rawDonHangId);
-            });
-            return matchOrderId || (customerMatch && card.khach_hang_id === customerMatch.id);
+          // Lookup service
+          const serviceMatch = latestServices.find(s => {
+            const cleanRaw = rawProductName.toLowerCase().replace(/\s+/g, '');
+            const cleanSID = (s.id_dich_vu || '').toLowerCase().replace(/\s+/g, '');
+            const cleanSTen = s.ten_dich_vu.toLowerCase().replace(/\s+/g, '');
+            return cleanRaw === cleanSID || cleanRaw === cleanSTen;
           });
+          
+          const productName = serviceMatch ? serviceMatch.ten_dich_vu : rawProductName;
 
-          const productName = String(getValue(['Sản phẩm', 'sản phẩm', 'dịch vụ', 'item', 'tên sản phẩm']) || '').trim();
-          const serviceMatch = latestServices.find(s => s.ten_dich_vu.toLowerCase() === productName.toLowerCase());
-
-          let ngay = formatExcelDate(getValue(['Ngày', 'ngày', 'ngày lập', 'ngay', 'date']));
+          let ngay = formatExcelDate(getValue(['Ngày']));
           if (!ngay) ngay = new Date().toISOString().split('T')[0];
 
-          const giaBan = Math.round(Number(getValue(['Giá', 'giá', 'giá bán', 'đơn giá', 'price', 'doanh thu', 'bán'])) || serviceMatch?.gia_ban || 0);
-          const giaVon = Math.round(Number(getValue(['Giá vốn', 'giá vốn', 'vốn', 'cost', 'giá nhập'])) || serviceMatch?.gia_nhap || 0);
-          const soLuong = Math.round(Number(getValue(['Số lượng', 'số lượng', 'sl', 'quantity'])) || 1);
-          const chiPhi = Math.round(Number(getValue(['Chi phí', 'chi phí', 'phát sinh', 'overhead', 'chi phí phụ'])) || 0);
+          const giaBan = Math.round(Number(getValue(['Giá'])) || serviceMatch?.gia_ban || 0);
+          const giaVon = Math.round(Number(getValue(['Giá vốn'])) || serviceMatch?.gia_nhap || 0);
+          const soLuong = Math.round(Number(getValue(['Số lượng'])) || 1);
+          const chiPhi = Math.round(Number(getValue(['Chi phí'])) || 0);
 
           const res: any = {
-            don_hang_id: parentOrder?.id || null, // Allow orphaned records
+            id_ban_hang_ct: rawIdCT || null,
+            id_don_hang: rawDonHangId || null,
             ngay,
-            ten_don_hang: getValue(['Tên đơn hàng', 'tên đơn hàng', 'đơn hàng', 'tên phiếu', 'tên đơn', 'nội dung', 'lý do', 'order name', 'tên thẻ']) || (parentOrder ? `Đơn hàng ${parentOrder.id.slice(0, 8)}` : 'Đơn hàng từ Excel'),
+            // Lấy chính xác nội dung từ Excel, không thêm bớt
+            ten_don_hang: (tenDonHangExcel !== undefined && tenDonHangExcel !== null) ? String(tenDonHangExcel).trim() : '',
             san_pham: productName || 'Sản phẩm lẻ',
-            co_so: getValue(['Cơ sở', 'cơ sở', 'chi nhánh', 'branch']) || 'Cơ sở Bắc Giang',
+            co_so: getValue(['Cơ sở']) || 'Cơ sở Bắc Giang',
             gia_ban: giaBan,
             gia_von: giaVon,
             so_luong: soLuong,
             chi_phi: chiPhi,
-            ghi_chu: getValue(['Ghi chú', 'ghi chú', 'note', 'nhận xét']) || ''
+            ghi_chu: getValue(['Ghi chú']) || ''
           };
 
-          const rawId = String(getValue(['id', 'mã', 'uuid', 'mã chi tiết']) || '').trim();
+          const rawId = String(getValue(['uuid', 'mã hệ thống']) || '').trim();
           if (rawId.length >= 32) res.id = rawId;
           return res;
         }).filter(Boolean) as Partial<SalesCardCT>[];
@@ -234,7 +202,7 @@ const SalesCardCTManagementPage: React.FC = () => {
           setLoading(true);
           await bulkUpsertSalesCardCTs(formattedData);
           await loadData();
-          alert(`🚀 THÀNH CÔNG: Đã nhập ${formattedData.length} hạng mục chi tiết.\n\nĐã tự động tạo ${toUpsertServices.length} sản phẩm/dịch vụ mới.`);
+          alert(`🚀 THÀNH CÔNG: Đã nhập ${formattedData.length} hạng mục chi tiết.`);
         } else {
           alert(`❌ Không tìm thấy dữ liệu hợp lệ (Thiếu liên kết Đơn hàng gốc).`);
         }
@@ -330,7 +298,7 @@ const SalesCardCTManagementPage: React.FC = () => {
               <Download className="size-4 sm:size-5" />
               <span>Tải mẫu</span>
             </button>
-            
+
             <div className="relative shrink-0">
               <button
                 onClick={() => document.getElementById('excel-import-ct')?.click()}
@@ -356,147 +324,152 @@ const SalesCardCTManagementPage: React.FC = () => {
 
         {/* Data Table */}
         <div className="bg-card rounded-lg border border-border shadow-sm overflow-hidden">
-        {/* Mobile View (Cards) */}
-        <div className="grid grid-cols-1 gap-3 md:hidden">
-          {loading ? (
-            Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="bg-card p-4 rounded-xl border border-border animate-pulse h-32" />
-            ))
-          ) : displayItems.length > 0 ? (
-            displayItems.map(item => (
-              <div key={item.id} className="bg-card p-3 rounded-xl border border-border shadow-sm space-y-3 relative overflow-hidden group hover:border-primary/40 transition-all animate-in fade-in slide-in-from-bottom-2 duration-300">
-                {/* Row 1: Date & ID */}
-                <div className="flex items-center justify-between text-[11px] border-b border-border/50 pb-2">
-                  <div className="flex items-center gap-1.5 font-medium text-muted-foreground">
-                    📅 {new Date(item.ngay).toLocaleDateString('vi-VN')}
+          {/* Mobile View (Cards) */}
+          <div className="grid grid-cols-1 gap-3 md:hidden">
+            {loading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="bg-card p-4 rounded-xl border border-border animate-pulse h-32" />
+              ))
+            ) : displayItems.length > 0 ? (
+              displayItems.map(item => (
+                <div key={item.id} className="bg-card p-3 rounded-xl border border-border shadow-sm space-y-3 relative overflow-hidden group hover:border-primary/40 transition-all animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  {/* Row 1: Date & ID */}
+                  <div className="flex items-center justify-between text-[11px] border-b border-border/50 pb-2">
+                    <div className="flex items-center gap-1.5 font-medium text-muted-foreground">
+                      📅 {new Date(item.ngay).toLocaleDateString('vi-VN')}
+                    </div>
+                    <div className="font-mono text-primary font-bold uppercase flex flex-col items-end gap-1">
+                      <span className="text-[10px] text-muted-foreground/60">ID: {item.id_ban_hang_ct || item.id.slice(0, 8)}</span>
+                      {item.id_don_hang && <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-[9px]">Đơn: {item.id_don_hang}</span>}
+                    </div>
                   </div>
-                  <div className="font-mono text-muted-foreground/60 uppercase">
-                    #{item.id.slice(0, 8)}
-                  </div>
-                </div>
 
-                {/* Row 2: Product & Order */}
-                <div className="space-y-1">
-                  <div className="text-[15px] font-black text-blue-600 leading-tight">
-                    {item.san_pham}
+                  {/* Row 2: Product & Order */}
+                  <div className="space-y-1">
+                    <div className="text-[15px] font-black text-blue-600 leading-tight">
+                      {item.san_pham}
+                    </div>
+                    <div className="text-[12px] text-muted-foreground font-medium truncate">
+                      📄 {item.ten_don_hang || '—'}
+                    </div>
                   </div>
-                  <div className="text-[12px] text-muted-foreground font-medium truncate">
-                    📄 {item.ten_don_hang || '—'}
-                  </div>
-                </div>
 
-                {/* Row 3: Financial Details */}
-                <div className="bg-muted/40 p-3 rounded-lg border border-border/40 space-y-2">
-                  <div className="flex items-center justify-between text-[13px]">
-                    <div className="flex flex-col">
-                      <span className="text-[10px] uppercase font-bold text-muted-foreground/60">Đơn giá / SL</span>
-                      <span className="font-bold text-foreground">
-                        {formatCurrency(item.gia_ban)} <span className="font-normal opacity-60">x{item.so_luong}</span>
+                  {/* Row 3: Financial Details */}
+                  <div className="bg-muted/40 p-3 rounded-lg border border-border/40 space-y-2">
+                    <div className="flex items-center justify-between text-[13px]">
+                      <div className="flex flex-col">
+                        <span className="text-[10px] uppercase font-bold text-muted-foreground/60">Đơn giá / SL</span>
+                        <span className="font-bold text-foreground">
+                          {formatCurrency(item.gia_ban)} <span className="font-normal opacity-60">x{item.so_luong}</span>
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] uppercase font-bold text-muted-foreground/60">Thành tiền</span>
+                        <div className="text-foreground font-black text-[15px]">
+                          {formatCurrency(item.thanh_tien)}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-border/30 flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">Lãi gộp:</span>
+                      <span className="text-emerald-600 font-black text-[15px]">
+                        +{formatCurrency(item.lai)}
                       </span>
                     </div>
-                    <div className="text-right">
-                      <span className="text-[10px] uppercase font-bold text-muted-foreground/60">Thành tiền</span>
-                      <div className="text-foreground font-black text-[15px]">
-                        {formatCurrency(item.thanh_tien)}
-                      </div>
-                    </div>
                   </div>
-                  
-                  <div className="pt-2 border-t border-border/30 flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">Lãi gộp:</span>
-                    <span className="text-emerald-600 font-black text-[15px]">
-                      +{formatCurrency(item.lai)}
-                    </span>
-                  </div>
-                </div>
 
-                {/* Actions */}
-                <div className="flex items-center justify-end gap-2 pt-1">
-                  <button onClick={() => handleOpenModal(item)} className="flex items-center gap-1.5 px-3 py-1.5 text-primary hover:bg-primary/5 rounded-lg text-[12px] font-bold border border-primary/20 transition-colors">
-                    <Edit2 size={14} /> Sửa
-                  </button>
-                  <button onClick={() => handleDelete(item.id)} className="flex items-center gap-1.5 px-3 py-1.5 text-destructive hover:bg-destructive/5 rounded-lg text-[12px] font-bold border border-destructive/20 transition-colors">
-                    <Trash2 size={14} /> Xóa
-                  </button>
+                  {/* Actions */}
+                  <div className="flex items-center justify-end gap-2 pt-1">
+                    <button onClick={() => handleOpenModal(item)} className="flex items-center gap-1.5 px-3 py-1.5 text-primary hover:bg-primary/5 rounded-lg text-[12px] font-bold border border-primary/20 transition-colors">
+                      <Edit2 size={14} /> Sửa
+                    </button>
+                    <button onClick={() => handleDelete(item.id)} className="flex items-center gap-1.5 px-3 py-1.5 text-destructive hover:bg-destructive/5 rounded-lg text-[12px] font-bold border border-destructive/20 transition-colors">
+                      <Trash2 size={14} /> Xóa
+                    </button>
+                  </div>
                 </div>
+              ))
+            ) : (
+              <div className="bg-card p-12 text-center text-muted-foreground border border-border border-dashed rounded-xl">
+                Chưa có hạng mục chi tiết nào.
               </div>
-            ))
-          ) : (
-            <div className="bg-card p-12 text-center text-muted-foreground border border-border border-dashed rounded-xl">
-              Chưa có hạng mục chi tiết nào.
-            </div>
-          )}
-        </div>
-
-        {/* Data Table (Desktop View) */}
-        <div className="hidden md:block bg-card rounded-lg border border-border shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-muted border-b border-border text-muted-foreground text-[13px] font-bold uppercase tracking-wider">
-                  <th className="px-4 py-3 font-semibold">ID</th>
-                  <th className="px-4 py-3 font-semibold">Ngày</th>
-                  <th className="px-4 py-3 font-semibold">Tiêu đề đơn</th>
-                  <th className="px-4 py-3 font-semibold">Sản phẩm/Dịch vụ</th>
-                  <th className="px-4 py-3 font-semibold">Cơ sở</th>
-                  <th className="px-4 py-3 font-semibold text-right">Giá bán</th>
-                  <th className="px-4 py-3 font-semibold text-right">Giá vốn</th>
-                  <th className="px-4 py-3 font-semibold text-center">SL</th>
-                  <th className="px-4 py-3 font-semibold text-right">Thành tiền</th>
-                  <th className="px-4 py-3 font-semibold text-right text-emerald-600">Lãi gộp</th>
-                  <th className="px-4 py-3 text-center font-semibold">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-[14px]">
-                {loading ? (
-                  <tr>
-                    <td colSpan={11} className="px-4 py-12 text-center text-muted-foreground">
-                      <Loader2 className="animate-spin inline-block mr-2" size={20} />
-                      Đang tải dữ liệu chi tiết...
-                    </td>
-                  </tr>
-                ) : displayItems.map(item => (
-                  <tr key={item.id} className="hover:bg-muted/80 transition-colors">
-                    <td className="px-4 py-4 font-mono text-[10px] text-muted-foreground max-w-[80px] truncate" title={item.id}>
-                      {item.id.slice(0, 8)}
-                    </td>
-                    <td className="px-4 py-4">{new Date(item.ngay).toLocaleDateString('vi-VN')}</td>
-                    <td className="px-4 py-4 font-bold text-foreground truncate max-w-[150px]">{item.ten_don_hang || '—'}</td>
-                    <td className="px-4 py-4">
-                      <div className="font-bold text-blue-600">{item.san_pham}</div>
-                      {item.ghi_chu && <div className="text-[11px] text-muted-foreground">{item.ghi_chu}</div>}
-                    </td>
-                    <td className="px-4 py-4 text-muted-foreground">{item.co_so}</td>
-                    <td className="px-4 py-4 text-right font-medium">{formatCurrency(item.gia_ban)}</td>
-                    <td className="px-4 py-4 text-right text-muted-foreground">{formatCurrency(item.gia_von)}</td>
-                    <td className="px-4 py-4 text-center font-bold">x{item.so_luong}</td>
-                    <td className="px-4 py-4 text-right font-black text-foreground">{formatCurrency(item.thanh_tien)}</td>
-                    <td className="px-4 py-4 text-right font-black text-emerald-600">{formatCurrency(item.lai)}</td>
-                    <td className="px-4 py-4 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <button onClick={() => handleOpenModal(item)} className="p-2 text-primary hover:bg-primary/10 rounded transition-colors" title="Chỉnh sửa"><Edit2 size={18} /></button>
-                        <button onClick={() => handleDelete(item.id)} className="p-2 text-destructive hover:bg-destructive/10 rounded transition-colors" title="Xóa"><Trash2 size={18} /></button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {!loading && displayItems.length === 0 && (
-                  <tr>
-                    <td colSpan={11} className="px-4 py-8 text-center text-muted-foreground">Chưa có hạng mục chi tiết nào.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+            )}
           </div>
-          <Pagination
-            currentPage={currentPage}
-            pageSize={pageSize}
-            totalCount={totalCount}
-            onPageChange={setCurrentPage}
-            onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
-            loading={loading}
-          />
-        </div>
+
+          {/* Data Table (Desktop View) */}
+          <div className="hidden md:block bg-card rounded-lg border border-border shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-muted border-b border-border text-muted-foreground text-[13px] font-bold uppercase tracking-wider">
+                    <th className="px-4 py-3 font-semibold">ID CT</th>
+                    <th className="px-4 py-3 font-semibold">Mã Đơn</th>
+                    <th className="px-4 py-3 font-semibold">Ngày</th>
+                    <th className="px-4 py-3 font-semibold">Tên đơn hàng</th>
+                    <th className="px-4 py-3 font-semibold">Sản phẩm/Dịch vụ</th>
+                    <th className="px-4 py-3 font-semibold">Cơ sở</th>
+                    <th className="px-4 py-3 font-semibold text-right">Giá bán</th>
+                    <th className="px-4 py-3 font-semibold text-right">Giá vốn</th>
+                    <th className="px-4 py-3 font-semibold text-center">SL</th>
+                    <th className="px-4 py-3 font-semibold text-right">Thành tiền</th>
+                    <th className="px-4 py-3 font-semibold text-right text-emerald-600">Lãi gộp</th>
+                    <th className="px-4 py-3 text-center font-semibold">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-[14px]">
+                  {loading ? (
+                    <tr>
+                      <td colSpan={11} className="px-4 py-12 text-center text-muted-foreground">
+                        <Loader2 className="animate-spin inline-block mr-2" size={20} />
+                        Đang tải dữ liệu chi tiết...
+                      </td>
+                    </tr>
+                  ) : displayItems.map(item => (
+                    <tr key={item.id} className="hover:bg-muted/80 transition-colors">
+                      <td className="px-4 py-4 font-mono text-[11px] font-bold text-primary">
+                        {item.id_ban_hang_ct || item.id.slice(0, 8)}
+                      </td>
+                      <td className="px-4 py-4 font-mono text-[11px] font-bold text-blue-600">
+                        {item.id_don_hang || '—'}
+                      </td>
+                      <td className="px-4 py-4">{new Date(item.ngay).toLocaleDateString('vi-VN')}</td>
+                      <td className="px-4 py-4 font-bold text-foreground truncate max-w-[150px]">{item.ten_don_hang || '—'}</td>
+                      <td className="px-4 py-4">
+                        <div className="font-bold text-blue-600">{item.san_pham}</div>
+                        {item.ghi_chu && <div className="text-[11px] text-muted-foreground">{item.ghi_chu}</div>}
+                      </td>
+                      <td className="px-4 py-4 text-muted-foreground">{item.co_so}</td>
+                      <td className="px-4 py-4 text-right font-medium">{formatCurrency(item.gia_ban)}</td>
+                      <td className="px-4 py-4 text-right text-muted-foreground">{formatCurrency(item.gia_von)}</td>
+                      <td className="px-4 py-4 text-center font-bold">x{item.so_luong}</td>
+                      <td className="px-4 py-4 text-right font-black text-foreground">{formatCurrency(item.thanh_tien)}</td>
+                      <td className="px-4 py-4 text-right font-black text-emerald-600">{formatCurrency(item.lai)}</td>
+                      <td className="px-4 py-4 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <button onClick={() => handleOpenModal(item)} className="p-2 text-primary hover:bg-primary/10 rounded transition-colors" title="Chỉnh sửa"><Edit2 size={18} /></button>
+                          <button onClick={() => handleDelete(item.id)} className="p-2 text-destructive hover:bg-destructive/10 rounded transition-colors" title="Xóa"><Trash2 size={18} /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {!loading && displayItems.length === 0 && (
+                    <tr>
+                      <td colSpan={11} className="px-4 py-8 text-center text-muted-foreground">Chưa có hạng mục chi tiết nào.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <Pagination
+              currentPage={currentPage}
+              pageSize={pageSize}
+              totalCount={totalCount}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+              loading={loading}
+            />
+          </div>
         </div>
       </div>
 

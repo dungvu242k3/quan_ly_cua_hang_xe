@@ -21,7 +21,7 @@ import Pagination from '../components/Pagination';
 import PersonnelDailyStatsModal from '../components/PersonnelDailyStatsModal';
 import PersonnelFormModal from '../components/PersonnelFormModal';
 import type { NhanSu } from '../data/personnelData';
-import { bulkUpsertPersonnel, deletePersonnel, getPersonnelPaginated, upsertPersonnel } from '../data/personnelData';
+import { bulkUpsertPersonnel, deletePersonnel, getNextPersonnelCode, getPersonnelPaginated, upsertPersonnel } from '../data/personnelData';
 
 const PersonnelManagementPage: React.FC = () => {
   const navigate = useNavigate();
@@ -105,13 +105,15 @@ const PersonnelManagementPage: React.FC = () => {
     });
   };
 
-  const handleOpenModal = (person?: NhanSu) => {
+  const handleOpenModal = async (person?: NhanSu) => {
     if (person) {
       setEditingPerson(person);
       setFormData({ ...person });
     } else {
+      const nextCode = await getNextPersonnelCode();
       setEditingPerson(null);
       setFormData({
+        id_nhan_su: nextCode,
         ho_ten: '',
         email: '',
         sdt: '',
@@ -356,7 +358,7 @@ const PersonnelManagementPage: React.FC = () => {
             </div>
 
             <button
-              onClick={() => handleOpenModal()}
+              onClick={async () => await handleOpenModal()}
               className="bg-primary hover:bg-primary/90 text-white px-3 sm:px-5 py-1.5 rounded flex items-center gap-2 text-[13px] sm:text-[14px] font-semibold transition-colors"
             >
               <Plus size={20} /> <span className="hidden sm:inline">Thêm mới</span>
@@ -416,7 +418,7 @@ const PersonnelManagementPage: React.FC = () => {
                     <td className="px-4 py-4 text-center">
                       <div className="flex items-center justify-center gap-3">
                         <button onClick={() => { setSelectedStatsPerson({ id: person.id, ho_ten: person.ho_ten }); setIsStatsModalOpen(true); }} className="text-emerald-600 hover:text-emerald-800 transition-colors" title="Xem thống kê làm việc"><Eye size={16} /></button>
-                        <button onClick={() => handleOpenModal(person)} className="text-primary hover:text-blue-700 transition-colors" title="Sửa thông tin"><Edit2 size={16} /></button>
+                        <button onClick={async () => await handleOpenModal(person)} className="text-primary hover:text-blue-700 transition-colors" title="Sửa thông tin"><Edit2 size={16} /></button>
                         <button onClick={() => handleDelete(person.id)} className="text-destructive hover:text-red-700 transition-colors" title="Xóa nhân viên"><Trash2 size={16} /></button>
                       </div>
                     </td>
@@ -512,7 +514,7 @@ const PersonnelManagementPage: React.FC = () => {
                           <span className="text-[10px] font-bold">Thống kê</span>
                         </button>
                         <button
-                          onClick={() => handleOpenModal(person)}
+                          onClick={async () => await handleOpenModal(person)}
                           className="flex items-center gap-1 px-2 py-1 bg-primary/5 text-primary rounded-lg active:scale-95 transition-transform"
                         >
                           <Edit2 size={14} />

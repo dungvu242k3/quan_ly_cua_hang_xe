@@ -28,14 +28,15 @@ const ServiceFormModal: React.FC<ServiceFormModalProps> = React.memo(({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-focus on mount
+  // Sync formData when initialData changes or modal opens
   useEffect(() => {
     if (isOpen) {
+      setFormData(initialData);
       setTimeout(() => {
         nameInputRef.current?.focus();
       }, 100);
     }
-  }, [isOpen]);
+  }, [isOpen, initialData]);
 
   if (!isOpen) return null;
 
