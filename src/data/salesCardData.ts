@@ -251,6 +251,39 @@ export const getSalesCardsPaginated = async (
   };
 };
 
+export const getSalesCardsByCustomer = async (
+  customerId: string,
+  startDate?: string,
+  endDate?: string
+): Promise<SalesCard[]> => {
+  let query = supabase
+    .from('the_ban_hang')
+    .select(`*`)
+    .eq('khach_hang_id', customerId);
+
+  if (startDate) {
+    query = query.gte('ngay', startDate);
+  }
+  if (endDate) {
+    query = query.lte('ngay', endDate);
+  }
+
+  const { data, error } = await query
+    .order('ngay', { ascending: false })
+    .order('gio', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching customer sales cards:', error);
+    throw error;
+  }
+
+  const cards = (data as SalesCard[]) || [];
+  
+  await enrichSalesCards(cards);
+
+  return cards;
+};
+
 export const normalizeSalesCards = async () => {
   // 1. Fetch all cards missing id_bh
   const { data: cards } = await supabase

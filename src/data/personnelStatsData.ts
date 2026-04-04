@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { enrichSalesCards } from './salesCardData';
 
 export interface PersonnelDailyStats {
   date: string;
@@ -18,15 +19,16 @@ export const getPersonnelDailyStats = async (
     // 1. Fetch Sales Cards (the_ban_hang) where the personnel is responsible on the specific date
     const { data: salesData, error: salesError } = await supabase
       .from('the_ban_hang')
-      .select('*, nhan_su(ho_ten), the_ban_hang_ct(*), khach_hang(ho_va_ten), dich_vu(ten_dich_vu, gia_ban)')
-      .eq('nhan_vien_id', personnelId)
+      .select('*')
+      .ilike('nhan_vien_id', `%${personnelId}%`)
       .gte('ngay', startDateStr)
       .lte('ngay', endDateStr);
 
     if (salesError) throw salesError;
 
-    // Calculate total orders and sales
     const validSales = salesData || [];
+    await enrichSalesCards(validSales);
+    
     const totalOrders = validSales.length;
 
     let totalSalesValue = 0;

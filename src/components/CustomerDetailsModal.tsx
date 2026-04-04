@@ -19,7 +19,7 @@ const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
    const todayDate = new Date();
    const firstDay = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1);
    const [startDateStr, setStartDateStr] = useState<string>(firstDay.toISOString().split('T')[0]);
-   const endDateStr = todayDate.toISOString().split('T')[0];
+   const [endDateStr, setEndDateStr] = useState<string>(todayDate.toISOString().split('T')[0]);
    const [loading, setLoading] = useState(true);
    const [history, setHistory] = useState<any[]>([]);
    const [activeTab, setActiveTab] = useState<'history' | 'info'>('history');
@@ -131,6 +131,15 @@ const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
                         type="date"
                         value={startDateStr}
                         onChange={(e) => setStartDateStr(e.target.value)}
+                        className="font-bold text-foreground text-[12px] sm:text-[14px] bg-muted/40 hover:bg-muted/60 border border-border/50 rounded-lg sm:rounded-xl px-2.5 py-1.5 sm:px-4 sm:py-2 outline-none focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer"
+                     />
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                     <span className="text-[9px] sm:text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Đến ngày</span>
+                     <input
+                        type="date"
+                        value={endDateStr}
+                        onChange={(e) => setEndDateStr(e.target.value)}
                         className="font-bold text-foreground text-[12px] sm:text-[14px] bg-muted/40 hover:bg-muted/60 border border-border/50 rounded-lg sm:rounded-xl px-2.5 py-1.5 sm:px-4 sm:py-2 outline-none focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer"
                      />
                   </div>

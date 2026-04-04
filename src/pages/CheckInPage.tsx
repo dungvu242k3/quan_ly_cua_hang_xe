@@ -97,6 +97,15 @@ const CheckInPage: React.FC = () => {
     return attendance.find((r: AttendanceRecord) => r.ngay === today && r.nhan_su === staffName);
   };
 
+  const getMonthlyWorkedDays = (staffName: string) => {
+    const currentMonthPrefix = new Date().toISOString().substring(0, 7);
+    return attendance.filter((r: AttendanceRecord) => 
+      r.nhan_su === staffName && 
+      r.ngay.startsWith(currentMonthPrefix) && 
+      r.checkin != null
+    ).length;
+  };
+
   return (
     <div className="flex-1 animate-in fade-in slide-in-from-bottom-4 duration-500 font-sans">
       <div className="max-w-4xl mx-auto space-y-6 py-8 lg:py-16">
@@ -181,15 +190,22 @@ const CheckInPage: React.FC = () => {
 
                   <div className="p-8 space-y-8">
                     {/* Status Info */}
-                    <div className="grid grid-cols-2 gap-4">
-                      {['VÀO', 'RA'].map((lbl, i) => {
+                    <div className="grid grid-cols-3 gap-3 sm:gap-4">
+                      {['VÀO', 'RA', 'CÔNG'].map((lbl, i) => {
                         const status = getTodayStatus(selectedStaff.ho_ten);
-                        const val = i === 0 ? status?.checkin : status?.checkout;
+                        let val: string | number | null | undefined = undefined;
+                        let subLabel = `GIỜ ${lbl}`;
+                        if (i === 0) val = status?.checkin;
+                        else if (i === 1) val = status?.checkout;
+                        else {
+                          val = getMonthlyWorkedDays(selectedStaff.ho_ten);
+                          subLabel = 'SỐ CÔNG THÁNG';
+                        }
                         return (
-                          <div key={lbl} className="bg-muted/30 border border-border rounded-2xl p-4 text-center">
-                            <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-1">GIỜ {lbl}</div>
-                            <div className="text-2xl font-black text-foreground tabular-nums">
-                              {val || '--:--'}
+                          <div key={lbl} className="bg-muted/30 border border-border rounded-xl sm:rounded-2xl p-2 sm:p-4 text-center flex flex-col justify-center">
+                            <div className="text-[9px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-1">{subLabel}</div>
+                            <div className="text-lg sm:text-2xl font-black text-foreground tabular-nums">
+                              {val || (i === 2 ? '0' : '--:--')}
                             </div>
                           </div>
                         );

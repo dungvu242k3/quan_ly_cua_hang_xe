@@ -774,6 +774,9 @@ const CustomerTableRow: React.FC<{
       {visibleColumns.includes('actions') && (
         <td className="px-4 py-3">
           <div className="flex items-center justify-center gap-2">
+            <button onClick={(e) => { e.preventDefault(); onOpenDetails(customer); }} className="p-2 text-blue-500 hover:bg-blue-50 rounded transition-colors" title="Lịch sử giao dịch">
+              <History size={18} />
+            </button>
             <button onClick={(e) => { e.preventDefault(); onEdit(customer); }} className="p-2 text-primary hover:bg-primary/5 rounded transition-colors" title="Sửa">
               <Edit2 size={18} />
             </button>
