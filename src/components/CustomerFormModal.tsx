@@ -19,7 +19,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { KhachHang, OilChangeEntry } from '../data/customerData';
-import { getCustomerByPlate, uploadCustomerImage, upsertCustomer } from '../data/customerData';
+import { getCustomerByPlate, getCustomerByPhone, uploadCustomerImage, upsertCustomer } from '../data/customerData';
 
 interface CustomerFormModalProps {
   isOpen: boolean;
@@ -97,11 +97,14 @@ const CustomerFormModal: React.FC<CustomerFormModalProps> = React.memo(({ isOpen
             const isOnSalesPage = location.pathname.includes('/ban-hang/phieu-ban-hang');
             
             if (!isOnSalesPage) {
-              // Always use UUID (existing.id) — guaranteed to match
-              console.log('[DEBUG] Saving pendingCustomerId to sessionStorage:', existing.id);
-              sessionStorage.setItem('pendingCustomerId', existing.id);
-              navigate('/ban-hang/phieu-ban-hang');
-              onClose();
+              const confirmed = window.confirm(
+                `⚠️ Biển số "${plate}" đã thuộc về khách hàng: ${existing.ho_va_ten}\n\n` +
+                `Bạn có muốn lập Phiếu Bán hàng mới cho khách hàng này không?`
+              );
+              if (confirmed) {
+                navigate('/ban-hang/phieu-ban-hang', { state: { pendingCustomerId: existing.id } });
+                onClose();
+              }
             } else {
               // If already on sales page (in a modal), just select the customer
               onSuccess(existing);
@@ -119,6 +122,43 @@ const CustomerFormModal: React.FC<CustomerFormModalProps> = React.memo(({ isOpen
 
     return () => clearTimeout(timer);
   }, [formData.bien_so_xe, isOpen, customer, navigate, onClose]);
+
+  // Duplication Phone Check logic
+  useEffect(() => {
+    if (!isOpen || !formData.so_dien_thoai || formData.so_dien_thoai.trim() === '') return;
+
+    const timer = setTimeout(async () => {
+      try {
+        const phone = formData.so_dien_thoai!.trim();
+        if (phone.length < 4) return;
+
+        const existing: KhachHang | null = await getCustomerByPhone(phone);
+        if (existing && existing.id !== (customer ? customer.id : '')) {
+          if (!customer) {
+            const isOnSalesPage = location.pathname.includes('/ban-hang/phieu-ban-hang');
+            
+            if (!isOnSalesPage) {
+              const confirmed = window.confirm(
+                `⚠️ Số điện thoại "${phone}" đã thuộc về khách hàng: ${existing.ho_va_ten}\n\n` +
+                `Bạn có muốn lập Phiếu Bán hàng mới cho khách hàng này không?`
+              );
+              if (confirmed) {
+                navigate('/ban-hang/phieu-ban-hang', { state: { pendingCustomerId: existing.id } });
+                onClose();
+              }
+            } else {
+              onSuccess(existing);
+              onClose();
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Lỗi kiểm tra SĐT:', err);
+      }
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [formData.so_dien_thoai, isOpen, customer, navigate, onClose]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;

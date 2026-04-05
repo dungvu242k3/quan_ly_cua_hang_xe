@@ -95,39 +95,86 @@ const SalesCardManagementPage: React.FC = () => {
   const displayItems = useMemo(() => salesCards, [salesCards]);
 
   // ---- AUTO-OPEN MODAL WHEN REDIRECTED FROM CUSTOMER PAGE ----
-  // Fetch the single customer directly by UUID — no need to wait for full list
-  useEffect(() => {
-    const pendingId = sessionStorage.getItem('pendingCustomerId');
-    if (!pendingId) return;
+  // Use a ref to store the pending customer ID so it survives re-renders
+  const pendingCustomerRef = React.useRef<string | null>(null);
 
-    sessionStorage.removeItem('pendingCustomerId');
+  // Capture pending ID immediately on first render (before any async work)
+  if (pendingCustomerRef.current === null) {
+    const state = location.state as any;
+    const id = state?.pendingCustomerId || sessionStorage.getItem('pendingCustomerId');
+    pendingCustomerRef.current = id || '';
+    // Clear storage immediately (without re-triggering location change)
+    if (id) {
+      sessionStorage.removeItem('pendingCustomerId');
+      // Clear location.state via history API directly — does NOT trigger React Router re-render
+      window.history.replaceState({}, '');
+    }
+  }
+
+  // After loadData completes and lists are ready, auto-open the modal
+  useEffect(() => {
+    const pendingId = pendingCustomerRef.current;
+    if (!pendingId || loading) return; // Wait until loading is done
+    if (customers.length === 0) return; // Wait until customers list is loaded
+
+    // Reset the ref so this only runs once
+    pendingCustomerRef.current = '';
 
     const openFormForCustomer = async () => {
       try {
-        const { data: customer } = await supabase
-          .from('khach_hang')
-          .select('id, ma_khach_hang, ho_va_ten, so_dien_thoai, so_km')
-          .eq('id', pendingId)
-          .maybeSingle();
-
+        // 1. Find the customer in the already-loaded list or fetch directly
+        let customer = customers.find(c => c.id === pendingId || c.ma_khach_hang === pendingId);
+        
         if (!customer) {
-          console.warn('[DEBUG] Customer not found for id:', pendingId);
-          return;
+          // Fallback: fetch from Supabase if not in list
+          const { data: fetchedCustomer } = await supabase
+            .from('khach_hang')
+            .select('id, ma_khach_hang, ho_va_ten, so_dien_thoai, so_km, bien_so_xe')
+            .eq('id', pendingId)
+            .maybeSingle();
+
+          if (!fetchedCustomer) {
+            console.warn('[DEBUG] Customer not found for id:', pendingId);
+            return;
+          }
+          customer = fetchedCustomer as KhachHang;
+          // Add to customers list so dropdown can resolve it
+          setCustomers(prev => [customer!, ...prev]);
         }
 
-        // Wait for personnel to load (lightweight, fast)
-        const persData = personnel.length > 0 ? personnel : await getPersonnel();
-        const matchedUser = persData.find(
-          p => p.ho_ten?.toLowerCase() === currentUser?.ho_ten?.toLowerCase()
-        ) || persData[0];
+        // 2. Find last person in charge from sales history
+        const lookupIds = [customer.id];
+        if (customer.ma_khach_hang) lookupIds.push(customer.ma_khach_hang);
 
+        const { data: lastCard } = await supabase
+          .from('the_ban_hang')
+          .select('nhan_vien_id')
+          .in('khach_hang_id', lookupIds)
+          .order('ngay', { ascending: false })
+          .order('gio', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        console.log('[DEBUG] Auto-open:', { customer: customer.ho_va_ten, lastCard });
+
+        let targetNhanVien = '';
+        if (lastCard?.nhan_vien_id) {
+          targetNhanVien = lastCard.nhan_vien_id;
+        } else {
+          const matchedUser = personnel.find(
+            p => p.ho_ten?.toLowerCase() === currentUser?.ho_ten?.toLowerCase()
+          ) || personnel[0];
+          targetNhanVien = matchedUser ? matchedUser.ho_ten : '';
+        }
+
+        // 3. Set form data and open modal
         setEditingCard(null);
         setIsReadOnlyModal(false);
         setFormData({
           ngay: new Date().toISOString().split('T')[0],
           gio: new Date().toLocaleTimeString('vi-VN', { hour12: false, hour: '2-digit', minute: '2-digit' }),
           khach_hang_id: customer.ma_khach_hang || customer.id,
-          nhan_vien_id: matchedUser ? matchedUser.ho_ten : '',
+          nhan_vien_id: targetNhanVien,
           dich_vu_id: '',
           dich_vu_ids: [],
           so_km: customer.so_km || 0,
@@ -135,12 +182,12 @@ const SalesCardManagementPage: React.FC = () => {
         });
         setIsModalOpen(true);
       } catch (err) {
-        console.error('Error auto-opening form:', err);
+        console.error('[CRITICAL] Error auto-opening form:', err);
       }
     };
 
     openFormForCustomer();
-  }, []); // Runs once on mount
+  }, [loading, customers.length]); // Runs when loading finishes and customers are ready
 
   const handleOpenModal = (card?: SalesCard) => {
     setIsReadOnlyModal(false);

@@ -222,3 +222,20 @@ export const getCustomerByPlate = async (plate: string): Promise<KhachHang | nul
 
   return null;
 };
+
+export const getCustomerByPhone = async (phone: string): Promise<KhachHang | null> => {
+  if (!phone || phone.trim().length < 4) return null;
+  const normalized = phone.trim().replace(/\D/g, '');
+
+  const { data, error } = await supabase
+    .from('khach_hang')
+    .select('*')
+    .eq('so_dien_thoai', normalized)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Error fetching customer by phone:', error);
+    return null;
+  }
+  return (data as KhachHang) || null;
+};
