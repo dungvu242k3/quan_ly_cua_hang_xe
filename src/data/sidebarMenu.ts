@@ -23,7 +23,7 @@ export const sidebarMenu: SidebarItem[] = [
   { icon: Wrench,    label: 'Dịch vụ',    path: '/dich-vu' },
   { icon: BarChart2, label: 'Báo cáo',     path: '/bao-cao',     adminOnly: true },
   { icon: Users,     label: 'Nhân sự',     path: '/nhan-su',     adminOnly: true },
-  { icon: Wallet,   label: 'Tiền lương',  path: '/tien-luong' }, // NV xem lương của mình, admin xem tất cả
+  { icon: Wallet,   label: 'Tiền lương',  path: '/tien-luong', adminOnly: true },
   { icon: Box,      label: 'Kho vận',     path: '/kho-van',     adminOnly: true },
 ];
 

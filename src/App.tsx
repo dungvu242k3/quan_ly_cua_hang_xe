@@ -72,10 +72,10 @@ function App() {
               <Route path="chinh-sach" element={<ProtectedRoute adminOnly><AllowancePolicyPage /></ProtectedRoute>} />
             </Route>
 
-            {/* Báo cáo doanh thu — chỉ admin */}
-            <Route path="/bao-cao" element={<ProtectedRoute adminOnly><RevenueReportPage /></ProtectedRoute>}>
-              <Route index element={<Navigate to="san-pham" replace />} />
-              <Route path=":tab" element={null} />
+            {/* Báo cáo — chỉ admin */}
+            <Route path="/bao-cao" element={<ProtectedRoute adminOnly><ModulePage /></ProtectedRoute>}>
+              <Route index element={null} />
+              <Route path=":tab" element={<RevenueReportPage />} />
             </Route>
 
             {/* Fallback route */}

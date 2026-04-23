@@ -5,6 +5,7 @@ import { moduleData } from '../data/moduleData';
 import { sidebarMenu } from '../data/sidebarMenu';
 import { motion } from 'framer-motion';
 import { useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
 
 const ModulePage: React.FC = () => {
   const { globalSearch, setGlobalSearch } = useOutletContext<{ globalSearch: string; setGlobalSearch: (val: string) => void }>() || { globalSearch: '', setGlobalSearch: () => {} };
@@ -30,6 +31,8 @@ const ModulePage: React.FC = () => {
 
   const isSubRoute = location.pathname !== currentItem?.path && location.pathname !== '/';
 
+  const { isAdmin } = useAuth();
+
   return (
     <motion.div 
       className="animate-in fade-in duration-500 w-full flex flex-col h-full"
@@ -41,10 +44,13 @@ const ModulePage: React.FC = () => {
         {!isSubRoute && (
           <div className="space-y-8 pb-8 animate-in fade-in duration-500">
             {data.map((section, idx) => {
-              // Filter items by search query
+              // Filter items by search query and admin permission
               const filteredItems = section.items.filter(item => 
-                item.title.toLowerCase().includes(globalSearch.toLowerCase()) || 
-                item.description.toLowerCase().includes(globalSearch.toLowerCase())
+                (!item.adminOnly || isAdmin) &&
+                (
+                  item.title.toLowerCase().includes(globalSearch.toLowerCase()) || 
+                  item.description.toLowerCase().includes(globalSearch.toLowerCase())
+                )
               );
 
               if (filteredItems.length === 0) return null;

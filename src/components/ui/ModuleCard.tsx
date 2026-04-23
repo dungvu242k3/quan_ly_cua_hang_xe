@@ -11,6 +11,7 @@ export interface ModuleCardProps {
   colorScheme: 'red' | 'green' | 'pink' | 'blue' | 'orange' | 'teal' | 'purple' | 'cyan' | 'emerald' | 'amber' | 'slate';
   path?: string;
   layoutId?: string;
+  adminOnly?: boolean;
 }
 
 const colorMap = {

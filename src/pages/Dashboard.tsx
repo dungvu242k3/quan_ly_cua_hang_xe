@@ -1,4 +1,4 @@
-import { Box, FileText, Users, Wallet, Wrench, BadgeDollarSign } from 'lucide-react';
+import { Box, FileText, Users, Wallet, Wrench, BadgeDollarSign, BarChart2 } from 'lucide-react';
 import React from 'react';
 import { useOutletContext } from 'react-router-dom';
 
@@ -6,9 +6,12 @@ import type { ActionCardProps } from '../components/ui/ActionCard';
 import { ActionCard } from '../components/ui/ActionCard';
 import { ModuleCard } from '../components/ui/ModuleCard';
 import { moduleData } from '../data/moduleData';
+import { useAuth } from '../context/AuthContext';
 import { removeVietnameseTones } from '../lib/utils';
 
-const dashboardModules: ActionCardProps[] = [
+type DashboardModule = ActionCardProps & { adminOnly?: boolean };
+
+const dashboardModules: DashboardModule[] = [
   {
     icon: FileText,
     title: 'Bán hàng',
@@ -21,7 +24,8 @@ const dashboardModules: ActionCardProps[] = [
     title: 'Thu chi',
     description: 'Quản lý dòng tiền và các chứng từ tài chính.',
     href: '/thu-chi',
-    colorScheme: 'blue'
+    colorScheme: 'blue',
+    adminOnly: true
   },
   {
     icon: Wrench,
@@ -35,27 +39,40 @@ const dashboardModules: ActionCardProps[] = [
     title: 'Nhân sự',
     description: 'Tuyển dụng, đào tạo, chấm công, lương.',
     href: '/nhan-su',
-    colorScheme: 'emerald'
+    colorScheme: 'emerald',
+    adminOnly: true
   },
   {
     icon: BadgeDollarSign,
     title: 'Tiền lương',
     description: 'Bảng lương, thuế, bảo hiểm và phụ cấp.',
     href: '/tien-luong',
-    colorScheme: 'amber'
+    colorScheme: 'amber',
+    adminOnly: true
   },
   {
     icon: Box,
     title: 'Kho vận',
     description: 'Tồn kho, xuất nhập kho, vận chuyển.',
     href: '/kho-van',
-    colorScheme: 'cyan'
+    colorScheme: 'cyan',
+    adminOnly: true
+  },
+  {
+    icon: BarChart2,
+    title: 'Báo cáo',
+    description: 'Phân tích doanh thu, chi phí và lợi nhuận.',
+    href: '/bao-cao',
+    colorScheme: 'rose',
+    adminOnly: true
   }
 ];
 
 const Dashboard: React.FC = () => {
   const { globalSearch } = useOutletContext<{ globalSearch: string }>() || { globalSearch: '' };
+  const { isAdmin } = useAuth();
   const allSections = Object.values(moduleData).flat();
+  const visibleModules = dashboardModules.filter(m => !m.adminOnly || isAdmin);
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -72,8 +89,11 @@ const Dashboard: React.FC = () => {
             {allSections.map((section, idx) => {
               const query = removeVietnameseTones(globalSearch);
               const filteredItems = section.items.filter(item =>
-                removeVietnameseTones(item.title).includes(query) ||
-                removeVietnameseTones(item.description).includes(query)
+                (!item.adminOnly || isAdmin) &&
+                (
+                  removeVietnameseTones(item.title).includes(query) ||
+                  removeVietnameseTones(item.description).includes(query)
+                )
               );
 
               if (filteredItems.length === 0) return null;
@@ -100,7 +120,7 @@ const Dashboard: React.FC = () => {
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5">
-          {dashboardModules.map((module, idx) => (
+          {visibleModules.map((module, idx) => (
             <ActionCard
               key={idx}
               {...module}

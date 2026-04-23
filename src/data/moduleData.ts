@@ -37,7 +37,7 @@ export const moduleData: Record<string, { section: string; items: ModuleCardProp
     {
       section: 'Tài chính',
       items: [
-        { icon: Wallet, title: 'Thu chi', description: 'Quản lý dòng tiền và các chứng từ tài chính.', colorScheme: 'blue', path: '/thu-chi' }
+        { icon: Wallet, title: 'Thu chi', description: 'Quản lý dòng tiền và các chứng từ tài chính.', colorScheme: 'blue', path: '/thu-chi', adminOnly: true }
       ]
     }
   ],
@@ -47,7 +47,7 @@ export const moduleData: Record<string, { section: string; items: ModuleCardProp
       items: [
         { icon: Plus, title: 'Chấm công', description: 'Nhập thông tin chấm công thủ công (giờ vào, ra, hình ảnh).', colorScheme: 'blue', path: '/nhan-su/them-cham-cong' },
         { icon: ClipboardList, title: 'Bảng chấm công', description: 'Xem và tổng hợp dữ liệu chấm công theo tháng.', colorScheme: 'orange', path: '/nhan-su/bang-cham-cong' },
-        { icon: Users, title: 'Nhân sự', description: 'Quản lý danh sách nhân viên, vị trí và cơ sở làm việc.', colorScheme: 'emerald', path: '/nhan-su/ung-vien' }
+        { icon: Users, title: 'Nhân sự', description: 'Quản lý danh sách nhân viên, vị trí và cơ sở làm việc.', colorScheme: 'emerald', path: '/nhan-su/ung-vien', adminOnly: true }
       ]
     }
   ],
@@ -55,10 +55,10 @@ export const moduleData: Record<string, { section: string; items: ModuleCardProp
     {
       section: 'Quản lý tiền lương',
       items: [
-        { icon: BadgeDollarSign, title: 'Bảng lương', description: 'Tính toán và quản lý bảng thanh toán lương hàng tháng.', colorScheme: 'emerald', path: '/tien-luong/bang-luong' },
-        { icon: Settings2, title: 'Thông số mặc định', description: 'Cấu hình lương cơ sở, mức đóng bảo hiểm và thuế.', colorScheme: 'blue', path: '/tien-luong/thong-so' },
-        { icon: Braces, title: 'Thành phần lương', description: 'Định nghĩa các khoản thu nhập và khấu trừ tùy chỉnh.', colorScheme: 'purple', path: '/tien-luong/thanh-phan' },
-        { icon: Wallet, title: 'Chính sách phụ cấp', description: 'Gán mức phụ cấp linh hoạt theo từng vị trí công việc.', colorScheme: 'orange', path: '/tien-luong/chinh-sach' }
+        { icon: BadgeDollarSign, title: 'Bảng lương', description: 'Tính toán và quản lý bảng thanh toán lương hàng tháng.', colorScheme: 'emerald', path: '/tien-luong/bang-luong', adminOnly: true },
+        { icon: Settings2, title: 'Thông số mặc định', description: 'Cấu hình lương cơ sở, mức đóng bảo hiểm và thuế.', colorScheme: 'blue', path: '/tien-luong/thong-so', adminOnly: true },
+        { icon: Braces, title: 'Thành phần lương', description: 'Định nghĩa các khoản thu nhập và khấu trừ tùy chỉnh.', colorScheme: 'purple', path: '/tien-luong/thanh-phan', adminOnly: true },
+        { icon: Wallet, title: 'Chính sách phụ cấp', description: 'Gán mức phụ cấp linh hoạt theo từng vị trí công việc.', colorScheme: 'orange', path: '/tien-luong/chinh-sach', adminOnly: true }
       ]
     }
   ],
@@ -66,8 +66,16 @@ export const moduleData: Record<string, { section: string; items: ModuleCardProp
     {
       section: 'Quản lý kho',
       items: [
-        { icon: ArrowLeftRight, title: 'Xuất nhập kho', description: 'Quản lý các hoạt động nhập hàng vào kho và xuất hàng ra khỏi kho.', colorScheme: 'teal', path: '/kho-van/xuat-nhap-kho' }
+        { icon: ArrowLeftRight, title: 'Xuất nhập kho', description: 'Quản lý các hoạt động nhập hàng vào kho và xuất hàng ra khỏi kho.', colorScheme: 'teal', path: '/kho-van/xuat-nhap-kho', adminOnly: true }
       ]
     }
   ],
+  '/bao-cao': [
+    {
+      section: 'Báo cáo & Phân tích',
+      items: [
+        { icon: FileText, title: 'Báo cáo doanh thu', description: 'Phân tích doanh thu, lợi nhuận và hiệu suất bán hàng.', colorScheme: 'blue', path: '/bao-cao/san-pham', adminOnly: true },
+      ]
+    }
+  ]
 };
